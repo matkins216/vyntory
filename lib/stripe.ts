@@ -57,12 +57,15 @@ export const updateInventoryMetadata = async (
   userId: string,
   action: string,
   reason?: string,
-  accessToken?: string
+  accessToken?: string,
+  stripeAccount?: string
 ): Promise<void> => {
   // Use connected account if access token provided, otherwise use main account
   const stripeInstance = accessToken ? createConnectedStripe(accessToken) : stripe;
   
-  const product = await stripeInstance.products.retrieve(productId);
+  const product = await stripeInstance.products.retrieve(productId, {
+    stripeAccount: stripeAccount
+  });
   const currentMetadata = getInventoryFromMetadata(product.metadata);
   
   const updatedMetadata: InventoryMetadata = {
@@ -89,17 +92,23 @@ export const updateInventoryMetadata = async (
       ...product.metadata,
       inventory: JSON.stringify(updatedMetadata)
     }
+  }, {
+    stripeAccount: stripeAccount
   });
 
   // If inventory reaches zero, disable the product
   if (newQuantity <= 0) {
     await stripeInstance.products.update(productId, {
       active: false
+    }, {
+      stripeAccount: stripeAccount
     });
   } else if (!product.active && newQuantity > 0) {
     // Re-enable product if inventory is restored
     await stripeInstance.products.update(productId, {
       active: true
+    }, {
+      stripeAccount: stripeAccount
     });
   }
 };

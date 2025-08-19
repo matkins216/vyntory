@@ -40,18 +40,25 @@ export async function POST(request: NextRequest) {
               const quantity = item.quantity || 1;
               
               // Get current product to check inventory
+              // For webhooks, we need to determine the connected account
+              // This is a simplified approach - in production you might want to store account mapping
               const product = await stripe.products.retrieve(productId);
               const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
               const newQuantity = Math.max(0, currentInventory.inventory - quantity);
               
-              // Update inventory
+              // Update inventory - webhook events come from the connected account
+              // For now, we'll use the main account since webhook events are typically global
+              // In production, you might want to implement account mapping logic
+              
               await updateInventoryMetadata(
                 productId,
                 newQuantity,
                 currentInventory.inventory,
                 'system',
                 'purchase',
-                `Purchase of ${quantity} units`
+                `Purchase of ${quantity} units`,
+                undefined, // No access token
+                undefined // Use main account for webhook events
               );
             }
           }

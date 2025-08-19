@@ -31,14 +31,16 @@ export async function PATCH(
     const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
     const previousQuantity = currentInventory.inventory;
 
-    // Update inventory
+    // Update inventory using the connected account
     await updateInventoryMetadata(
       id,
       quantity,
       previousQuantity,
       userId,
       'manual_adjustment',
-      reason || 'Manual inventory adjustment'
+      reason || 'Manual inventory adjustment',
+      undefined, // No access token needed since we're using stripeAccount
+      accountId // Pass the stripeAccount for connected account operations
     );
 
     return NextResponse.json({ 
