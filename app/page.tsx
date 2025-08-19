@@ -1,15 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Package, Shield, Zap, BarChart3, CheckCircle, XCircle } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Package, Shield, Zap, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function Home() {
+function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -34,7 +32,7 @@ export default function Home() {
     try {
       // Redirect to Stripe OAuth
       window.location.href = '/api/stripe/auth';
-    } catch (error) {
+    } catch {
       toast.error('Failed to connect to Stripe');
       setIsConnecting(false);
     }
@@ -215,5 +213,13 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }

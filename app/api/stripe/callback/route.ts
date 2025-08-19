@@ -4,7 +4,6 @@ import { stripe } from '@/lib/stripe';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
-  const state = searchParams.get('state');
   const error = searchParams.get('error');
 
   if (error) {
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
     // Store the connected account ID and access token
     // In a real app, you'd store this in a database
     const connectedAccountId = response.stripe_user_id;
-    const accessToken = response.access_token;
+    // const accessToken = response.access_token; // Will be used for future API calls
 
     // Redirect to dashboard with success
     return NextResponse.redirect(

@@ -30,7 +30,10 @@ interface Product {
     id: string;
     currency: string;
     unit_amount: number;
-    recurring?: any;
+    recurring?: {
+    interval: string;
+    interval_count?: number;
+  };
   }>;
   created: number;
 }

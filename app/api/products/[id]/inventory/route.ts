@@ -3,9 +3,10 @@ import { stripe, updateInventoryMetadata } from '@/lib/stripe';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { quantity, reason, userId, accountId } = await request.json();
     
     if (typeof quantity !== 'number' || quantity < 0) {
@@ -23,7 +24,7 @@ export async function PATCH(
     }
 
     // Get current product to check existing inventory
-    const product = await stripe.products.retrieve(params.id, {
+    const product = await stripe.products.retrieve(id, {
       stripeAccount: accountId,
     });
 
@@ -32,7 +33,7 @@ export async function PATCH(
 
     // Update inventory
     await updateInventoryMetadata(
-      params.id,
+      id,
       quantity,
       previousQuantity,
       userId,

@@ -40,7 +40,10 @@ interface Product {
     id: string;
     currency: string;
     unit_amount: number;
-    recurring?: any;
+    recurring?: {
+      interval: string;
+      interval_count?: number;
+    };
   }>;
   created: number;
 }
@@ -99,7 +102,7 @@ export function InventoryModal({ open, onOpenChange, product, onUpdate }: Invent
             <span>Update Inventory</span>
           </DialogTitle>
           <DialogDescription>
-            Update the inventory for "{product.name}"
+            Update the inventory for &quot;{product.name}&quot;
           </DialogDescription>
         </DialogHeader>
 

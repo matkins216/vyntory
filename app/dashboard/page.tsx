@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ProductCard } from '@/components/ProductCard';
 import { InventoryModal } from '@/components/InventoryModal';
@@ -43,7 +43,7 @@ interface Product {
   created: number;
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const accountId = searchParams.get('account');
   
@@ -51,12 +51,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (accountId) {
-      fetchProducts();
-    }
-  }, [accountId, fetchProducts]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -69,12 +63,18 @@ export default function Dashboard() {
       }
       
       setProducts(data.products);
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch products');
     } finally {
       setLoading(false);
     }
   }, [accountId]);
+
+  useEffect(() => {
+    if (accountId) {
+      fetchProducts();
+    }
+  }, [accountId, fetchProducts]);
 
   const handleInventoryUpdate = async (productId: string, newQuantity: number, reason: string) => {
     try {
@@ -100,7 +100,7 @@ export default function Dashboard() {
       } else {
         toast.error('Failed to update inventory');
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to update inventory');
     }
   };
@@ -277,5 +277,13 @@ export default function Dashboard() {
         onUpdate={handleInventoryUpdate}
       />
     </div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

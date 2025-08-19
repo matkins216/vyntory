@@ -5,16 +5,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const state = searchParams.get('state') || 'default';
   
-  // For development, you'll need to use a proper HTTPS domain
-  // Options:
-  // 1. Use ngrok (https://ngrok.com/) to create a public HTTPS tunnel
-  // 2. Use a service like Vercel for development
-  // 3. Use Stripe's test mode with a different approach
-  
-  // For now, let's use a placeholder that you can update
-  const redirectUri = process.env.NODE_ENV === 'production' 
-    ? `${process.env.NEXTAUTH_URL}/api/stripe/callback`
-    : 'https://your-ngrok-url.ngrok.io/api/stripe/callback'; // Replace with your ngrok URL
+  // Use the NEXTAUTH_URL environment variable which will be set to your Vercel domain
+  const redirectUri = `${process.env.NEXTAUTH_URL}/api/stripe/callback`;
   
   // Generate OAuth URL with proper encoding
   const oauthUrl = new URL('https://connect.stripe.com/oauth/authorize');
