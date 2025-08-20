@@ -77,21 +77,36 @@ function DashboardContent() {
   }, [accountId, fetchProducts]);
 
   const handleInventoryUpdate = async (productId: string, newQuantity: number, reason: string) => {
+    console.log('Dashboard: handleInventoryUpdate called with:', {
+      productId,
+      newQuantity,
+      reason,
+      accountId
+    });
+    
     try {
+      const requestBody = {
+        quantity: newQuantity,
+        reason,
+        userId: 'user_' + Date.now(), // In a real app, this would be the actual user ID
+        accountId,
+      };
+      
+      console.log('Dashboard: Sending request to:', `/api/products/${productId}/inventory`);
+      console.log('Dashboard: Request body:', requestBody);
+      
       const response = await fetch(`/api/products/${productId}/inventory`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          quantity: newQuantity,
-          reason,
-          userId: 'user_' + Date.now(), // In a real app, this would be the actual user ID
-          accountId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('Dashboard: Response status:', response.status);
+      
       const data = await response.json();
+      console.log('Dashboard: Response data:', data);
       
       if (data.success) {
         toast.success('Inventory updated successfully');
@@ -100,7 +115,8 @@ function DashboardContent() {
       } else {
         toast.error('Failed to update inventory');
       }
-    } catch {
+    } catch (error) {
+      console.error('Dashboard: Error in handleInventoryUpdate:', error);
       toast.error('Failed to update inventory');
     }
   };
