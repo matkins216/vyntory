@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, updateInventoryMetadata } from '@/lib/stripe';
+import { InventoryUpdateRequest, InventoryUpdateResponse } from '@/lib/types/inventory';
 
 export async function PATCH(
   request: NextRequest,
@@ -7,7 +8,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = await request.json();
+    const body: InventoryUpdateRequest = await request.json();
     const { quantity, reason, userId, accountId } = body;
     
     console.log('Inventory update request:', {
@@ -71,11 +72,13 @@ export async function PATCH(
 
     console.log('Inventory updated successfully');
 
-    return NextResponse.json({ 
+    const response: InventoryUpdateResponse = {
       success: true, 
       newQuantity: quantity,
       previousQuantity 
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error updating inventory:', error);
     return NextResponse.json(

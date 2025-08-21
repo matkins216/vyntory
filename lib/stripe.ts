@@ -1,4 +1,6 @@
 import Stripe from 'stripe';
+import { InventoryAuditService } from './services/inventory-audit';
+import { InventoryMetadata } from './types/inventory';
 
 // Main Stripe instance for OAuth operations
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -19,20 +21,6 @@ export const createConnectedStripe = (accessToken: string) => {
   });
 };
 
-export interface InventoryMetadata {
-  inventory: number;
-  lastUpdated: string;
-  lastUpdatedBy: string;
-  auditLog: Array<{
-    action: string;
-    quantity: number;
-    previousQuantity: number;
-    timestamp: string;
-    userId: string;
-    reason?: string;
-  }>;
-}
-
 export const getInventoryFromMetadata = (metadata: Stripe.Metadata): InventoryMetadata => {
   try {
     if (metadata.inventory) {
@@ -45,8 +33,7 @@ export const getInventoryFromMetadata = (metadata: Stripe.Metadata): InventoryMe
   return {
     inventory: 0,
     lastUpdated: new Date().toISOString(),
-    lastUpdatedBy: 'system',
-    auditLog: []
+    lastUpdatedBy: 'system'
   };
 };
 
@@ -68,22 +55,24 @@ export const updateInventoryMetadata = async (
   });
   const currentMetadata = getInventoryFromMetadata(product.metadata);
   
+  // Create audit log in Supabase
+  const auditService = new InventoryAuditService();
+  await auditService.createAuditLog({
+    product_id: productId,
+    stripe_account_id: stripeAccount || 'main',
+    action,
+    quantity: newQuantity,
+    previous_quantity: previousQuantity,
+    user_id: userId,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+
+  // Update Stripe metadata with only essential information (no audit logs)
   const updatedMetadata: InventoryMetadata = {
-    ...currentMetadata,
     inventory: newQuantity,
     lastUpdated: new Date().toISOString(),
-    lastUpdatedBy: userId,
-    auditLog: [
-      ...currentMetadata.auditLog,
-      {
-        action,
-        quantity: newQuantity,
-        previousQuantity,
-        timestamp: new Date().toISOString(),
-        userId,
-        reason
-      }
-    ]
+    lastUpdatedBy: userId
   };
 
   // Update product metadata
