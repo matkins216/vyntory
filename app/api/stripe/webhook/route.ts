@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, updateInventoryMetadata } from '@/lib/stripe';
 import { headers } from 'next/headers';
+import type Stripe from 'stripe';
 
 export async function GET() {
   return NextResponse.json({ 
@@ -68,11 +69,13 @@ export async function POST(request: NextRequest) {
                 
                 // Get the connected account ID from the session
                 // For connected accounts, the session will have the account ID
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 let connectedAccountId = (session as any).account;
                 
                 if (!connectedAccountId) {
                   console.error('No connected account ID found in session, trying to extract from metadata');
                   // Try to get account ID from metadata or other sources
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const accountId = (session as any).metadata?.connected_account_id;
                   if (!accountId) {
                     // As a last resort, try to get the account from the product itself
