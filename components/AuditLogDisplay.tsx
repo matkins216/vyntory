@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { History, Calendar, User, Package } from 'lucide-react';
-import { AlertTriangle } from 'lucide-react';
+import { History, User, Package, AlertTriangle } from 'lucide-react';
 
 interface AuditLog {
   id: string;
@@ -32,13 +31,7 @@ export function AuditLogDisplay({ productId, stripeAccountId, isOpen, onClose }:
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && productId && stripeAccountId) {
-      fetchAuditLogs();
-    }
-  }, [isOpen, productId, stripeAccountId]);
-
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -63,7 +56,13 @@ export function AuditLogDisplay({ productId, stripeAccountId, isOpen, onClose }:
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId, stripeAccountId]);
+
+  useEffect(() => {
+    if (isOpen && productId && stripeAccountId) {
+      fetchAuditLogs();
+    }
+  }, [isOpen, productId, stripeAccountId, fetchAuditLogs]);
 
   if (!isOpen) return null;
 
