@@ -8,11 +8,15 @@
 
 ### 2. Wrong Stripe Account Context
 **Problem**: Webhook was trying to access products from main account instead of connected accounts
-**Solution**: Added logic to extract connected account ID from session
+**Solution**: Added logic to extract connected account ID from webhook event
 
 ### 3. Missing Error Handling
 **Problem**: No logging to debug webhook execution
 **Solution**: Added comprehensive logging throughout the webhook handler
+
+### 4. Connected Account Webhook Configuration
+**Problem**: Webhooks need to be configured to listen to connected account events
+**Solution**: Webhook now extracts account ID from event and operates in correct context
 
 ## How to Debug
 
@@ -38,8 +42,8 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 ### 4. Monitor Webhook Logs
 The webhook now includes extensive logging. Check your console/terminal for:
 - Webhook received events
+- Account context information
 - Session processing details
-- Account ID extraction attempts
 - Inventory update operations
 
 ### 5. Test with Stripe CLI
@@ -51,19 +55,48 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 stripe trigger checkout.session.completed
 ```
 
+## CRITICAL: Connected Account Webhook Setup
+
+For webhooks to work with connected accounts, you need to configure them properly:
+
+### Option 1: Stripe Connect Webhooks (Recommended - No Customer Setup Required)
+1. In your **main account**, go to **Connect > Settings**
+2. **Enable webhooks for connected accounts**
+3. **Add your webhook endpoint**: `http://localhost:3000/api/stripe/webhook`
+4. **Select events**: `checkout.session.completed`
+5. This automatically routes events from all connected accounts to your webhook
+
+### Option 2: Automatic Account Detection (No Customer Setup Required)
+The webhook now automatically detects connected accounts using multiple methods:
+1. **Webhook event account field** (if available)
+2. **Payment intent transfer data** (most reliable)
+3. **Product lookup across known accounts** (fallback)
+
+To use this approach:
+1. Set `DEFAULT_CONNECTED_ACCOUNT_ID` in your `.env.local` if you have a default account
+2. The webhook will automatically find the correct account for each purchase
+3. No customer configuration needed
+
+### Option 3: Account-Specific Webhooks (Requires Customer Setup)
+1. Go to your connected account dashboard
+2. Navigate to Webhooks
+3. Create a webhook endpoint pointing to your app
+4. Select `checkout.session.completed` events
+5. This ensures webhooks come from the connected account
+
 ## Common Issues
 
-### Issue: "No connected account ID found"
-**Cause**: Webhook can't determine which Stripe account the product belongs to
+### Issue: "No connected account ID found in webhook event"
+**Cause**: Webhook is not configured for connected accounts
 **Solutions**:
-1. Check if products have `stripe_account_id` in metadata
-2. Verify webhook is configured for the correct account
-3. Ensure checkout sessions include account information
+1. Configure webhook in the connected account dashboard
+2. Use Stripe Connect webhook settings
+3. Check if webhook includes account information
 
 ### Issue: "Cannot determine connected account"
 **Cause**: Multiple fallback methods failed to find account ID
 **Solutions**:
-1. Add `stripe_account_id` to product metadata during creation
+1. Configure webhook in connected account
 2. Check webhook event structure for account information
 3. Verify Stripe Connect setup
 
@@ -73,6 +106,13 @@ stripe trigger checkout.session.completed
 1. Verify `STRIPE_WEBHOOK_SECRET` in `.env.local`
 2. Check webhook endpoint configuration in Stripe Dashboard
 3. Ensure no extra whitespace in environment variable
+
+### Issue: "Inventory not decrementing"
+**Cause**: Webhook is not operating in the correct account context
+**Solutions**:
+1. Verify webhook is configured for connected account
+2. Check console logs for account ID extraction
+3. Test with webhook-test endpoint
 
 ## Testing Steps
 
@@ -86,19 +126,26 @@ stripe trigger checkout.session.completed
    curl http://localhost:3000/api/stripe/webhook
    ```
 
-3. **Create a test checkout session** in Stripe Dashboard
+3. **Test inventory update** (using the test endpoint):
+   ```bash
+   curl -X POST http://localhost:3000/api/stripe/webhook-test \
+     -H "Content-Type: application/json" \
+     -d '{"productId":"prod_...","accountId":"acct_...","quantity":1}'
+   ```
 
-4. **Monitor console logs** for webhook execution
+4. **Create a test checkout session** in the connected account
 
-5. **Check product inventory** before and after checkout
+5. **Monitor console logs** for webhook execution
+
+6. **Check product inventory** before and after checkout
 
 ## Expected Webhook Flow
 
-1. `checkout.session.completed` event received
-2. Session retrieved with expanded line items
-3. Connected account ID extracted
+1. `checkout.session.completed` event received from connected account
+2. Webhook extracts `event.account` (connected account ID)
+3. Session retrieved with expanded line items
 4. Each product's inventory reduced by purchased quantity
-5. Product metadata updated
+5. Product metadata updated in connected account
 6. Audit log created
 7. Product disabled if inventory reaches 0
 
@@ -107,6 +154,11 @@ stripe trigger checkout.session.completed
 ```bash
 # Check if webhook is accessible
 curl -X GET http://localhost:3000/api/stripe/webhook
+
+# Test inventory update
+curl -X POST http://localhost:3000/api/stripe/webhook-test \
+  -H "Content-Type: application/json" \
+  -d '{"productId":"prod_...","accountId":"acct_...","quantity":1}'
 
 # Check environment variables
 echo $STRIPE_WEBHOOK_SECRET
@@ -117,3 +169,12 @@ tail -f your-app.log | grep webhook
 # Test Stripe connection
 node -e "const stripe = require('stripe')('sk_test_...'); stripe.products.list().then(console.log)"
 ```
+
+## Webhook Configuration Checklist
+
+- [ ] Webhook endpoint configured in Stripe Dashboard
+- [ ] `checkout.session.completed` event selected
+- [ ] Webhook secret copied to `.env.local`
+- [ ] Webhook configured for connected account (if using account-specific webhooks)
+- [ ] Webhook endpoint accessible from Stripe servers
+- [ ] Console logging enabled to monitor webhook execution

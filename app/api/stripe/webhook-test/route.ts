@@ -19,7 +19,11 @@ export async function POST(request: NextRequest) {
       stripeAccount: accountId
     });
     
-    console.log('Product retrieved successfully:', product.id);
+    console.log('Product retrieved successfully:', {
+      id: product.id,
+      name: product.name,
+      metadata: product.metadata
+    });
     
     // Test parsing inventory metadata
     const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
@@ -50,13 +54,26 @@ export async function POST(request: NextRequest) {
     
     console.log('Inventory updated successfully');
     
+    // Verify the update by retrieving the product again
+    const updatedProduct = await stripe.products.retrieve(productId, {
+      stripeAccount: accountId
+    });
+    
+    const verifiedInventory = JSON.parse(updatedProduct.metadata.inventory || '{"inventory": 0}');
+    
     return NextResponse.json({ 
       success: true,
       message: 'Test completed successfully',
       inventory: {
         previous: previousQuantity,
         new: newQuantity,
-        reduction: quantity
+        reduction: quantity,
+        verified: verifiedInventory.inventory
+      },
+      product: {
+        id: product.id,
+        name: product.name,
+        metadata: updatedProduct.metadata
       }
     });
     

@@ -47,8 +47,9 @@ export const updateInventoryMetadata = async (
   accessToken?: string,
   stripeAccount?: string
 ): Promise<void> => {
-  // Use connected account if access token provided, otherwise use main account
-  const stripeInstance = accessToken ? createConnectedStripe(accessToken) : stripe;
+  // Always use the main Stripe instance with stripeAccount parameter for connected accounts
+  // This ensures we're operating in the correct account context
+  const stripeInstance = stripe;
   
   const product = await stripeInstance.products.retrieve(productId, {
     stripeAccount: stripeAccount
