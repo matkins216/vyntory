@@ -63,7 +63,10 @@ For webhooks to work with connected accounts, you need to configure them properl
 1. In your **main account**, go to **Connect > Settings**
 2. **Enable webhooks for connected accounts**
 3. **Add your webhook endpoint**: `http://localhost:3000/api/stripe/webhook`
-4. **Select events**: `checkout.session.completed`
+4. **Select events**: 
+   - `checkout.session.completed` (basic session info)
+   - `invoice.payment_succeeded` (complete line items with quantities) ⭐ **RECOMMENDED**
+   - `payment_intent.succeeded` (fallback with session lookup)
 5. This automatically routes events from all connected accounts to your webhook
 
 ### Option 2: Automatic Account Detection (No Customer Setup Required)
@@ -83,6 +86,26 @@ To use this approach:
 3. Create a webhook endpoint pointing to your app
 4. Select `checkout.session.completed` events
 5. This ensures webhooks come from the connected account
+
+## 🎯 **Why `invoice.payment_succeeded` is Better**
+
+The `checkout.session.completed` webhook has limitations:
+- ❌ Line items not included by default
+- ❌ Quantity information may be missing
+- ❌ Requires additional API calls to get complete data
+
+The `invoice.payment_succeeded` webhook provides:
+- ✅ Complete line item details
+- ✅ Accurate quantity information
+- ✅ Product IDs and pricing
+- ✅ Connected account context
+- ✅ More reliable inventory updates
+
+## 📋 **Webhook Event Priority**
+
+1. **`invoice.payment_succeeded`** - Best for inventory (complete line items)
+2. **`payment_intent.succeeded`** - Good fallback (looks up session)
+3. **`checkout.session.completed`** - Basic info (may need expansion)
 
 ## Common Issues
 

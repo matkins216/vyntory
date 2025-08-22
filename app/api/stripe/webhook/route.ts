@@ -224,9 +224,146 @@ async function processWebhookEvent(event: any) {
         }
         break;
 
+      case 'invoice.payment_succeeded':
+        console.log('Processing invoice.payment_succeeded:', event.data.object.id);
+        
+        // This webhook includes complete line item details with quantities
+        const invoice = event.data.object;
+        const invoiceAccountId = event.account;
+        
+        if (!invoiceAccountId) {
+          console.error('No connected account ID found in invoice webhook');
+          break;
+        }
+        
+        console.log(`Processing invoice for connected account: ${invoiceAccountId}`);
+        
+        if (invoice.lines?.data) {
+          console.log(`Found ${invoice.lines.data.length} line items in invoice`);
+          
+          for (const line of invoice.lines.data) {
+            if (line.price?.product) {
+              const productId = typeof line.price.product === 'string' 
+                ? line.price.product 
+                : line.price.product.id;
+              
+              const quantity = line.quantity || 1;
+              
+              console.log(`Processing product ${productId}, quantity: ${quantity}`);
+              
+              try {
+                // Get current product from the connected account
+                const product = await stripe.products.retrieve(productId, {
+                  stripeAccount: invoiceAccountId
+                });
+                
+                console.log(`Retrieved product ${productId} from account ${invoiceAccountId}`);
+                
+                const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                const previousQuantity = currentInventory.inventory;
+                const newQuantity = Math.max(0, previousQuantity - quantity);
+                
+                console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                
+                // Update inventory in the connected account
+                await updateInventoryMetadata(
+                  productId,
+                  newQuantity,
+                  previousQuantity,
+                  'system',
+                  'purchase',
+                  `Purchase of ${quantity} units via invoice ${invoice.id}`,
+                  undefined, // No access token needed
+                  invoiceAccountId // Use the connected account
+                );
+                
+                console.log(`Successfully updated inventory for product ${productId}`);
+                
+              } catch (productError) {
+                console.error(`Error processing product ${productId}:`, productError);
+              }
+            }
+          }
+        }
+        break;
+
       case 'payment_intent.succeeded':
-        console.log('Payment intent succeeded:', event.data.object.id);
-        // Handle successful payment if needed
+        console.log('Processing payment_intent.succeeded:', event.data.object.id);
+        
+        // This webhook can also provide line item details
+        const paymentIntent = event.data.object;
+        const paymentAccountId = event.account;
+        
+        if (!paymentAccountId) {
+          console.error('No connected account ID found in payment intent webhook');
+          break;
+        }
+        
+        console.log(`Processing payment intent for connected account: ${paymentAccountId}`);
+        
+        // Try to get line items from the payment intent
+        if (paymentIntent.metadata?.checkout_session_id) {
+          try {
+            const session = await stripe.checkout.sessions.retrieve(
+              paymentIntent.metadata.checkout_session_id,
+              {
+                expand: ['line_items.data.price.product']
+              }
+            );
+            
+            if (session.line_items?.data) {
+              console.log(`Found ${session.line_items.data.length} line items from session`);
+              
+              for (const item of session.line_items.data) {
+                if (item.price?.product) {
+                  const productId = typeof item.price.product === 'string' 
+                    ? item.price.product 
+                    : item.price.product.id;
+                  
+                  const quantity = item.quantity || 1;
+                  
+                  console.log(`Processing product ${productId}, quantity: ${quantity}`);
+                  
+                  try {
+                    // Get current product from the connected account
+                    const product = await stripe.products.retrieve(productId, {
+                      stripeAccount: paymentAccountId
+                    });
+                    
+                    console.log(`Retrieved product ${productId} from account ${paymentAccountId}`);
+                    
+                    const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                    const previousQuantity = currentInventory.inventory;
+                    const newQuantity = Math.max(0, previousQuantity - quantity);
+                    
+                    console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                    
+                    // Update inventory in the connected account
+                    await updateInventoryMetadata(
+                      productId,
+                      newQuantity,
+                      previousQuantity,
+                      'system',
+                      'purchase',
+                      `Purchase of ${quantity} units via payment intent ${paymentIntent.id}`,
+                      undefined, // No access token needed
+                      paymentAccountId // Use the connected account
+                    );
+                    
+                    console.log(`Successfully updated inventory for product ${productId}`);
+                    
+                  } catch (productError) {
+                    console.error(`Error processing product ${productId}:`, productError);
+                  }
+                }
+              }
+            }
+          } catch (sessionError) {
+            console.error('Error retrieving session from payment intent:', sessionError);
+          }
+        } else {
+          console.log('No checkout session ID found in payment intent metadata');
+        }
         break;
 
       default:
