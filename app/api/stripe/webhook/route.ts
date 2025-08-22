@@ -90,18 +90,34 @@ async function processWebhookEvent(event: any) {
               const isLiveSession = session.id.startsWith('cs_live_');
               console.log(`Session type: ${isLiveSession ? 'LIVE' : 'TEST'}`);
               
-              // Use the latest API version with better expansion options
-              expandedSession = await stripe.checkout.sessions.retrieve(
-                session.id,
-                {
-                  expand: [
-                    'line_items.data.price.product',
-                    'line_items.data.price.recurring',
-                    'line_items.data.price.currency_options'
-                  ]
-                }
-              );
-              console.log('Retrieved expanded session with line items');
+              // Use the dedicated line items endpoint for better data access
+              // Based on: https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil
+              const lineItemsResponse = await stripe.checkout.sessions.listLineItems(session.id, {
+                limit: 100 // Get all line items
+              });
+              
+              if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
+                console.log(`Retrieved ${lineItemsResponse.data.length} line items using dedicated endpoint`);
+                expandedSession = {
+                  line_items: {
+                    data: lineItemsResponse.data
+                  }
+                };
+              } else {
+                // Fallback to the expand method if line items endpoint fails
+                console.log('Line items endpoint returned no data, trying expand method...');
+                expandedSession = await stripe.checkout.sessions.retrieve(
+                  session.id,
+                  {
+                    expand: [
+                      'line_items.data.price.product',
+                      'line_items.data.price.recurring',
+                      'line_items.data.price.currency_options'
+                    ]
+                  }
+                );
+                console.log('Retrieved expanded session with line items');
+              }
             } catch (retrieveError) {
               console.error('Error retrieving expanded session:', retrieveError);
               
@@ -270,6 +286,84 @@ async function processWebhookEvent(event: any) {
         }
         break;
 
+      case 'payment_link.created':
+      case 'payment_link.updated':
+        console.log(`Processing ${event.type}:`, event.data.object.id);
+        
+        // Handle payment link events
+        const paymentLink = event.data.object;
+        const paymentLinkAccountId = event.account;
+        
+        if (!paymentLinkAccountId) {
+          console.error(`No connected account ID found in ${event.type} webhook`);
+          break;
+        }
+        
+        console.log(`Processing payment link for connected account: ${paymentLinkAccountId}`);
+        
+        // Use the dedicated line items endpoint for payment links
+        // Based on: https://docs.stripe.com/api/payment-link/retrieve-line-items?api-version=2025-07-30.basil
+        try {
+          const lineItemsResponse = await stripe.paymentLinks.listLineItems(paymentLink.id, {
+            limit: 100 // Get all line items
+          });
+          
+          if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
+            console.log(`Found ${lineItemsResponse.data.length} line items in payment link`);
+            
+            for (const item of lineItemsResponse.data) {
+              if (item.price?.product) {
+                const productId = typeof item.price.product === 'string' 
+                  ? item.price.product 
+                  : item.price.product.id;
+                
+                const quantity = item.quantity || 1;
+                
+                console.log(`Processing payment link product ${productId}, quantity: ${quantity}`);
+                
+                try {
+                  // Get current product from the connected account with expanded data
+                  const product = await stripe.products.retrieve(productId, {
+                    expand: ['default_price', 'metadata', 'features', 'tax_code']
+                  }, {
+                    stripeAccount: paymentLinkAccountId
+                  });
+                  
+                  console.log(`Retrieved product ${productId} from account ${paymentLinkAccountId}`);
+                  
+                  const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                  const previousQuantity = currentInventory.inventory;
+                  const newQuantity = Math.max(0, previousQuantity - quantity);
+                  
+                  console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                  
+                  // Update inventory in the connected account
+                  await updateInventoryMetadata(
+                    productId,
+                    newQuantity,
+                    previousQuantity,
+                    'system',
+                    'payment_link',
+                    `Payment link ${event.type} of ${quantity} units via ${paymentLink.id}`,
+                    undefined, // No access token needed
+                    paymentLinkAccountId // Use the connected account
+                  );
+                  
+                  console.log(`Successfully updated inventory for product ${productId}`);
+                  
+                } catch (productError) {
+                  console.error(`Error processing product ${productId}:`, productError);
+                }
+              }
+            }
+          } else {
+            console.log('No line items found in payment link');
+          }
+        } catch (lineItemsError) {
+          console.error('Error retrieving payment link line items:', lineItemsError);
+        }
+        break;
+
       case 'invoice.payment_succeeded':
         console.log('Processing invoice.payment_succeeded:', event.data.object.id);
         
@@ -352,21 +446,19 @@ async function processWebhookEvent(event: any) {
         // Try to get line items from the payment intent
         if (paymentIntent.metadata?.checkout_session_id) {
           try {
-            const session = await stripe.checkout.sessions.retrieve(
+            // Use the dedicated line items endpoint for better data access
+            // Based on: https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil
+            const lineItemsResponse = await stripe.checkout.sessions.listLineItems(
               paymentIntent.metadata.checkout_session_id,
               {
-                expand: [
-                  'line_items.data.price.product',
-                  'line_items.data.price.recurring',
-                  'line_items.data.price.currency_options'
-                ]
+                limit: 100 // Get all line items
               }
             );
             
-            if (session.line_items?.data) {
-              console.log(`Found ${session.line_items.data.length} line items from session`);
+            if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
+              console.log(`Found ${lineItemsResponse.data.length} line items using dedicated endpoint`);
               
-              for (const item of session.line_items.data) {
+              for (const item of lineItemsResponse.data) {
                 if (item.price?.product) {
                   const productId = typeof item.price.product === 'string' 
                     ? item.price.product 
@@ -408,6 +500,69 @@ async function processWebhookEvent(event: any) {
                     
                   } catch (productError) {
                     console.error(`Error processing product ${productId}:`, productError);
+                  }
+                }
+              }
+            } else {
+              // Fallback to the expand method if line items endpoint fails
+              console.log('Line items endpoint returned no data, trying expand method...');
+              const session = await stripe.checkout.sessions.retrieve(
+                paymentIntent.metadata.checkout_session_id,
+                {
+                  expand: [
+                    'line_items.data.price.product',
+                    'line_items.data.price.recurring',
+                    'line_items.data.price.currency_options'
+                  ]
+                }
+              );
+              
+              if (session.line_items?.data) {
+                console.log(`Found ${session.line_items.data.length} line items from session`);
+                
+                for (const item of session.line_items.data) {
+                  if (item.price?.product) {
+                    const productId = typeof item.price.product === 'string' 
+                      ? item.price.product 
+                      : item.price.product.id;
+                    
+                    const quantity = item.quantity || 1;
+                    
+                    console.log(`Processing product ${productId}, quantity: ${quantity}`);
+                    
+                    try {
+                      // Get current product from the connected account with expanded data
+                      const product = await stripe.products.retrieve(productId, {
+                        expand: ['default_price', 'metadata', 'features', 'tax_code']
+                      }, {
+                        stripeAccount: paymentAccountId
+                      });
+                      
+                      console.log(`Retrieved product ${productId} from account ${paymentAccountId}`);
+                      
+                      const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                      const previousQuantity = currentInventory.inventory;
+                      const newQuantity = Math.max(0, previousQuantity - quantity);
+                      
+                      console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                      
+                      // Update inventory in the connected account
+                      await updateInventoryMetadata(
+                        productId,
+                        newQuantity,
+                        previousQuantity,
+                        'system',
+                        'purchase',
+                        `Purchase of ${quantity} units via payment intent ${paymentIntent.id}`,
+                        undefined, // No access token needed
+                        paymentAccountId // Use the connected account
+                      );
+                      
+                      console.log(`Successfully updated inventory for product ${productId}`);
+                      
+                    } catch (productError) {
+                      console.error(`Error processing product ${productId}:`, productError);
+                    }
                   }
                 }
               }

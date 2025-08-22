@@ -70,6 +70,8 @@ For webhooks to work with connected accounts, you need to configure them properl
    - `charge.succeeded` (one-time charges)
    - `customer.subscription.created` (new subscriptions)
    - `customer.subscription.updated` (subscription changes)
+   - `payment_link.created` (payment link creation)
+   - `payment_link.updated` (payment link updates)
    - `payment_intent.payment_failed` (failed payments - no inventory change)
    - `invoice.payment_failed` (failed invoices - no inventory change)
    - `charge.failed` (failed charges - no inventory change)
@@ -120,9 +122,10 @@ Your webhook now handles **ALL types of purchases**:
 
 1. **`invoice.payment_succeeded`** - Best for inventory (complete line items + expanded data)
 2. **`customer.subscription.created/updated`** - Best for recurring sales (expanded features)
-3. **`payment_intent.succeeded`** - Good fallback (looks up session with expansion)
-4. **`charge.succeeded`** - Good for direct charges (expanded product data)
-5. **`checkout.session.completed`** - Basic info (enhanced with expansion)
+3. **`payment_intent.succeeded`** - Good fallback (uses dedicated line items endpoint)
+4. **`checkout.session.completed`** - Enhanced with dedicated line items endpoint
+5. **`payment_link.created/updated`** - Payment link line items via dedicated endpoint
+6. **`charge.succeeded`** - Good for direct charges (expanded product data)
 
 ## 🎯 **Why `invoice.payment_succeeded` is Better**
 
@@ -311,7 +314,7 @@ Your webhook now uses the latest Stripe API version with enhanced features:
 - **`currency_options`** - Multi-currency pricing options
 
 ### **Improved Session Retrieval**
-- **Better line item expansion** for checkout sessions
+- **Better line items expansion** for checkout sessions
 - **Enhanced payment intent data** with transfer information
 - **Setup intent support** for subscription flows
 
@@ -319,3 +322,22 @@ Your webhook now uses the latest Stripe API version with enhanced features:
 - **Transfer data expansion** for connected accounts
 - **Latest charge information** for payment tracking
 - **Better error handling** for account context issues
+
+## 🎯 **Dedicated Line Items Endpoints**
+
+Your webhook now uses the proper Stripe API endpoints for accessing product quantities:
+
+### **Checkout Sessions Line Items**
+- **Endpoint**: `stripe.checkout.sessions.listLineItems(sessionId)`
+- **Documentation**: [Checkout Sessions Line Items API](https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil)
+- **Benefits**: Direct access to line items with quantities, no expansion needed
+
+### **Payment Links Line Items**
+- **Endpoint**: `stripe.paymentLinks.listLineItems(paymentLinkId)`
+- **Documentation**: [Payment Links Line Items API](https://docs.stripe.com/api/payment-link/retrieve-line-items?api-version=2025-07-30.basil)
+- **Benefits**: Complete line item data for payment link purchases
+
+### **Fallback Methods**
+- **Expand method**: Used when dedicated endpoints fail
+- **Session retrieval**: Backup for complex scenarios
+- **Error handling**: Graceful degradation for edge cases
