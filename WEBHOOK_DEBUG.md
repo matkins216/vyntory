@@ -63,10 +63,16 @@ For webhooks to work with connected accounts, you need to configure them properl
 1. In your **main account**, go to **Connect > Settings**
 2. **Enable webhooks for connected accounts**
 3. **Add your webhook endpoint**: `http://localhost:3000/api/stripe/webhook`
-4. **Select events**: 
-   - `checkout.session.completed` (basic session info)
-   - `invoice.payment_succeeded` (complete line items with quantities) ⭐ **RECOMMENDED**
-   - `payment_intent.succeeded` (fallback with session lookup)
+4. **Select ALL these events** for comprehensive coverage:
+   - `checkout.session.completed` (ecommerce checkouts)
+   - `invoice.payment_succeeded` (invoiced sales) ⭐ **RECOMMENDED**
+   - `payment_intent.succeeded` (direct payments)
+   - `charge.succeeded` (one-time charges)
+   - `customer.subscription.created` (new subscriptions)
+   - `customer.subscription.updated` (subscription changes)
+   - `payment_intent.payment_failed` (failed payments - no inventory change)
+   - `invoice.payment_failed` (failed invoices - no inventory change)
+   - `charge.failed` (failed charges - no inventory change)
 5. This automatically routes events from all connected accounts to your webhook
 
 ### Option 2: Automatic Account Detection (No Customer Setup Required)
@@ -87,6 +93,37 @@ To use this approach:
 4. Select `checkout.session.completed` events
 5. This ensures webhooks come from the connected account
 
+## 🎯 **Comprehensive Purchase Coverage**
+
+Your webhook now handles **ALL types of purchases**:
+
+### **🛒 Ecommerce & Checkout**
+- `checkout.session.completed` - Standard ecommerce checkouts
+
+### **📄 Invoiced Sales**
+- `invoice.payment_succeeded` - Complete line items with quantities ⭐ **BEST**
+
+### **💳 Direct Payments**
+- `payment_intent.succeeded` - Direct payment intents
+- `charge.succeeded` - One-time charges
+
+### **🔄 Subscriptions**
+- `customer.subscription.created` - New subscriptions
+- `customer.subscription.updated` - Subscription changes
+
+### **❌ Failed Payments**
+- `payment_intent.payment_failed` - No inventory change
+- `invoice.payment_failed` - No inventory change
+- `charge.failed` - No inventory change
+
+## 📋 **Webhook Event Priority**
+
+1. **`invoice.payment_succeeded`** - Best for inventory (complete line items + expanded data)
+2. **`customer.subscription.created/updated`** - Best for recurring sales (expanded features)
+3. **`payment_intent.succeeded`** - Good fallback (looks up session with expansion)
+4. **`charge.succeeded`** - Good for direct charges (expanded product data)
+5. **`checkout.session.completed`** - Basic info (enhanced with expansion)
+
 ## 🎯 **Why `invoice.payment_succeeded` is Better**
 
 The `checkout.session.completed` webhook has limitations:
@@ -100,12 +137,6 @@ The `invoice.payment_succeeded` webhook provides:
 - ✅ Product IDs and pricing
 - ✅ Connected account context
 - ✅ More reliable inventory updates
-
-## 📋 **Webhook Event Priority**
-
-1. **`invoice.payment_succeeded`** - Best for inventory (complete line items)
-2. **`payment_intent.succeeded`** - Good fallback (looks up session)
-3. **`checkout.session.completed`** - Basic info (may need expansion)
 
 ## Common Issues
 
@@ -266,3 +297,25 @@ This error occurs when the webhook receives a live Stripe event but can't retrie
    # Check if your main account can access connected accounts
    # Test with a simple API call
    ```
+
+## 🚀 **Stripe API Version 730 (2025-07-30.basil) Features**
+
+Your webhook now uses the latest Stripe API version with enhanced features:
+
+### **Enhanced Data Expansion**
+- **`default_price`** - Get the product's default pricing
+- **`metadata`** - Access all product metadata including inventory
+- **`features`** - Product features and capabilities
+- **`tax_code`** - Tax classification information
+- **`recurring`** - Subscription pricing details
+- **`currency_options`** - Multi-currency pricing options
+
+### **Improved Session Retrieval**
+- **Better line item expansion** for checkout sessions
+- **Enhanced payment intent data** with transfer information
+- **Setup intent support** for subscription flows
+
+### **Advanced Account Detection**
+- **Transfer data expansion** for connected accounts
+- **Latest charge information** for payment tracking
+- **Better error handling** for account context issues

@@ -90,10 +90,15 @@ async function processWebhookEvent(event: any) {
               const isLiveSession = session.id.startsWith('cs_live_');
               console.log(`Session type: ${isLiveSession ? 'LIVE' : 'TEST'}`);
               
+              // Use the latest API version with better expansion options
               expandedSession = await stripe.checkout.sessions.retrieve(
                 session.id,
                 {
-                  expand: ['line_items.data.price.product']
+                  expand: [
+                    'line_items.data.price.product',
+                    'line_items.data.price.recurring',
+                    'line_items.data.price.currency_options'
+                  ]
                 }
               );
               console.log('Retrieved expanded session with line items');
@@ -151,13 +156,18 @@ async function processWebhookEvent(event: any) {
                   // Try to get account ID from the checkout session
                   try {
                     // Get the full session details to find the connected account
-                    const fullSession = await stripe.checkout.sessions.retrieve(session.id);
+                    const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+                      expand: ['payment_intent', 'setup_intent']
+                    });
                     
                     // Check if this is a connected account session
                     if (fullSession.payment_intent) {
                       // Get the payment intent to find the connected account
                       const paymentIntent = await stripe.paymentIntents.retrieve(
-                        fullSession.payment_intent as string
+                        fullSession.payment_intent as string,
+                        {
+                          expand: ['transfer_data.destination', 'latest_charge']
+                        }
                       );
                       
                       if (paymentIntent.transfer_data?.destination) {
@@ -185,19 +195,21 @@ async function processWebhookEvent(event: any) {
                       ].filter(Boolean);
                       
                       for (const accountId of possibleAccounts) {
-                        try {
-                          const product = await stripe.products.retrieve(firstProductId, {
-                            stripeAccount: accountId
-                          });
-                          if (product) {
-                            connectedAccountId = accountId;
-                            console.log(`Found connected account from product lookup: ${connectedAccountId}`);
-                            break;
+                                                  try {
+                            const product = await stripe.products.retrieve(firstProductId, {
+                              expand: ['default_price', 'metadata']
+                            }, {
+                              stripeAccount: accountId
+                            });
+                            if (product) {
+                              connectedAccountId = accountId;
+                              console.log(`Found connected account from product lookup: ${connectedAccountId}`);
+                              break;
+                            }
+                          } catch {
+                            // Product not found in this account, try next
+                            continue;
                           }
-                        } catch {
-                          // Product not found in this account, try next
-                          continue;
-                        }
                       }
                     }
                     
@@ -216,8 +228,10 @@ async function processWebhookEvent(event: any) {
                 console.log(`Processing for connected account: ${connectedAccountId}`);
                 
                 try {
-                  // Get current product from the connected account
+                  // Get current product from the connected account with expanded data
                   const product = await stripe.products.retrieve(productId, {
+                    expand: ['default_price', 'metadata', 'features']
+                  }, {
                     stripeAccount: connectedAccountId
                   });
                   
@@ -284,8 +298,10 @@ async function processWebhookEvent(event: any) {
               console.log(`Processing product ${productId}, quantity: ${quantity}`);
               
               try {
-                // Get current product from the connected account
+                // Get current product from the connected account with expanded data
                 const product = await stripe.products.retrieve(productId, {
+                  expand: ['default_price', 'metadata', 'features', 'tax_code']
+                }, {
                   stripeAccount: invoiceAccountId
                 });
                 
@@ -339,7 +355,11 @@ async function processWebhookEvent(event: any) {
             const session = await stripe.checkout.sessions.retrieve(
               paymentIntent.metadata.checkout_session_id,
               {
-                expand: ['line_items.data.price.product']
+                expand: [
+                  'line_items.data.price.product',
+                  'line_items.data.price.recurring',
+                  'line_items.data.price.currency_options'
+                ]
               }
             );
             
@@ -357,8 +377,10 @@ async function processWebhookEvent(event: any) {
                   console.log(`Processing product ${productId}, quantity: ${quantity}`);
                   
                   try {
-                    // Get current product from the connected account
+                    // Get current product from the connected account with expanded data
                     const product = await stripe.products.retrieve(productId, {
+                      expand: ['default_price', 'metadata', 'features', 'tax_code']
+                    }, {
                       stripeAccount: paymentAccountId
                     });
                     
@@ -398,8 +420,158 @@ async function processWebhookEvent(event: any) {
         }
         break;
 
+      case 'charge.succeeded':
+        console.log('Processing charge.succeeded:', event.data.object.id);
+        
+        // Handle direct charges (like one-time payments)
+        const charge = event.data.object;
+        const chargeAccountId = event.account;
+        
+        if (!chargeAccountId) {
+          console.error('No connected account ID found in charge webhook');
+          break;
+        }
+        
+        console.log(`Processing charge for connected account: ${chargeAccountId}`);
+        
+        // Try to get line items from charge metadata or description
+        if (charge.metadata?.product_id) {
+          const productId = charge.metadata.product_id;
+          const quantity = parseInt(charge.metadata.quantity || '1');
+          
+          console.log(`Processing product ${productId}, quantity: ${quantity}`);
+          
+          try {
+                // Get current product from the connected account with expanded data
+                const product = await stripe.products.retrieve(productId, {
+                  expand: ['default_price', 'metadata', 'features', 'tax_code']
+                }, {
+                  stripeAccount: chargeAccountId
+                });
+                
+                console.log(`Retrieved product ${productId} from account ${chargeAccountId}`);
+                
+                const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                const previousQuantity = currentInventory.inventory;
+                const newQuantity = Math.max(0, previousQuantity - quantity);
+                
+                console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                
+                // Update inventory in the connected account
+                await updateInventoryMetadata(
+                  productId,
+                  newQuantity,
+                  previousQuantity,
+                  'system',
+                  'purchase',
+                  `Purchase of ${quantity} units via charge ${charge.id}`,
+                  undefined, // No access token needed
+                  chargeAccountId // Use the connected account
+                );
+                
+                console.log(`Successfully updated inventory for product ${productId}`);
+                
+              } catch (productError) {
+                console.error(`Error processing product ${productId}:`, productError);
+              }
+        } else {
+          console.log('No product ID found in charge metadata');
+        }
+        break;
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        console.log(`Processing ${event.type}:`, event.data.object.id);
+        
+        // Handle subscription changes
+        const subscription = event.data.object;
+        const subscriptionAccountId = event.account;
+        
+        if (!subscriptionAccountId) {
+          console.error(`No connected account ID found in ${event.type} webhook`);
+          break;
+        }
+        
+        console.log(`Processing subscription for connected account: ${subscriptionAccountId}`);
+        
+        // Get subscription items
+        if (subscription.items?.data) {
+          console.log(`Found ${subscription.items.data.length} subscription items`);
+          
+          for (const item of subscription.items.data) {
+            if (item.price?.product) {
+              const productId = typeof item.price.product === 'string' 
+                ? item.price.product 
+                : item.price.product.id;
+              
+              const quantity = item.quantity || 1;
+              
+              console.log(`Processing subscription product ${productId}, quantity: ${quantity}`);
+              
+              try {
+                // Get current product from the connected account with expanded data
+                const product = await stripe.products.retrieve(productId, {
+                  expand: ['default_price', 'metadata', 'features', 'tax_code']
+                }, {
+                  stripeAccount: subscriptionAccountId
+                });
+                
+                console.log(`Retrieved product ${productId} from account ${subscriptionAccountId}`);
+                
+                const currentInventory = JSON.parse(product.metadata.inventory || '{"inventory": 0}');
+                const previousQuantity = currentInventory.inventory;
+                const newQuantity = Math.max(0, previousQuantity - quantity);
+                
+                console.log(`Inventory update: ${previousQuantity} -> ${newQuantity} (reduced by ${quantity})`);
+                
+                // Update inventory in the connected account
+                await updateInventoryMetadata(
+                  productId,
+                  newQuantity,
+                  previousQuantity,
+                  'system',
+                  'subscription',
+                  `Subscription of ${quantity} units via ${event.type} ${subscription.id}`,
+                  undefined, // No access token needed
+                  subscriptionAccountId // Use the connected account
+                );
+                
+                console.log(`Successfully updated inventory for product ${productId}`);
+                
+              } catch (productError) {
+                console.error(`Error processing product ${productId}:`, productError);
+              }
+            }
+          }
+        }
+        break;
+
+      case 'customer.subscription.deleted':
+        console.log('Processing customer.subscription.deleted:', event.data.object.id);
+        // Don't update inventory for deleted subscriptions - they were already counted
+        break;
+
+      // Note: Stripe doesn't have order endpoints in current API
+      // Orders are typically handled through invoices or checkout sessions
+
+      case 'payment_intent.payment_failed':
+        console.log('Processing payment_intent.payment_failed:', event.data.object.id);
+        // Don't update inventory for failed payments
+        break;
+
+      case 'invoice.payment_failed':
+        console.log('Processing invoice.payment_failed:', event.data.object.id);
+        // Don't update inventory for failed payments
+        break;
+
+      case 'charge.failed':
+        console.log('Processing charge.failed:', event.data.object.id);
+        // Don't update inventory for failed payments
+        break;
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
+        console.log('Event data structure:', JSON.stringify(event.data.object, null, 2));
     }
 
     return { success: true, message: 'Event processed successfully' };
