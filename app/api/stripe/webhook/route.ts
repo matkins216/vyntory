@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, updateInventoryMetadata } from '@/lib/stripe';
 import { headers } from 'next/headers';
-import type Stripe from 'stripe';
 
 // Test webhook handler for debugging
 async function handleTestWebhook() {
@@ -51,6 +50,7 @@ async function handleTestWebhook() {
 }
 
 // Extract webhook processing logic into a separate function
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function processWebhookEvent(event: any) {
   console.log('=== PROCESSING WEBHOOK EVENT ===');
   console.log('Event type:', event.type);
@@ -162,7 +162,7 @@ async function processWebhookEvent(event: any) {
                             console.log(`Found connected account from product lookup: ${connectedAccountId}`);
                             break;
                           }
-                        } catch (e) {
+                        } catch {
                           // Product not found in this account, try next
                           continue;
                         }
