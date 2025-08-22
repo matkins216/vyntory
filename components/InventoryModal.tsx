@@ -27,14 +27,6 @@ interface Product {
     inventory: number;
     lastUpdated: string;
     lastUpdatedBy: string;
-    auditLog: Array<{
-      action: string;
-      quantity: number;
-      previousQuantity: number;
-      timestamp: string;
-      userId: string;
-      reason?: string;
-    }>;
   };
   prices: Array<{
     id: string;

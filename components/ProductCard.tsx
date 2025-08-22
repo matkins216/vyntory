@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Package, DollarSign, Calendar, User } from 'lucide-react';
+import { Package, DollarSign, Calendar, User, History } from 'lucide-react';
+import { AuditLogDisplay } from './AuditLogDisplay';
 
 interface Product {
   id: string;
@@ -17,23 +18,15 @@ interface Product {
     inventory: number;
     lastUpdated: string;
     lastUpdatedBy: string;
-    auditLog: Array<{
-      action: string;
-      quantity: number;
-      previousQuantity: number;
-      timestamp: string;
-      userId: string;
-      reason?: string;
-    }>;
   };
   prices: Array<{
     id: string;
     currency: string;
     unit_amount: number;
     recurring?: {
-    interval: string;
-    interval_count?: number;
-  };
+      interval: string;
+      interval_count?: number;
+    };
   }>;
   created: number;
 }
@@ -41,9 +34,10 @@ interface Product {
 interface ProductCardProps {
   product: Product;
   onInventoryUpdate: (product: Product) => void;
+  stripeAccountId?: string;
 }
 
-export function ProductCard({ product, onInventoryUpdate }: ProductCardProps) {
+export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: ProductCardProps) {
   const [showAuditLog, setShowAuditLog] = useState(false);
 
   const formatPrice = (amount: number, currency: string) => {
@@ -146,40 +140,27 @@ export function ProductCard({ product, onInventoryUpdate }: ProductCardProps) {
         </div>
 
         {/* Audit Log Toggle */}
-        {product.inventory.auditLog.length > 0 && (
-          <div className="mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAuditLog(!showAuditLog)}
-              className="w-full"
-            >
-              {showAuditLog ? 'Hide' : 'Show'} Audit Log ({product.inventory.auditLog.length})
-            </Button>
-          </div>
-        )}
+        <div className="mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAuditLog(true)}
+            className="w-full"
+            disabled={!stripeAccountId}
+          >
+            <History className="h-4 w-4 mr-2" />
+            View Audit Log
+          </Button>
+        </div>
 
-        {/* Audit Log */}
-        {showAuditLog && product.inventory.auditLog.length > 0 && (
-          <div className="mb-4 p-3 bg-muted rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Recent Changes</h4>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {product.inventory.auditLog.slice(-5).reverse().map((log, index) => (
-                <div key={index} className="text-xs">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{log.action}</span>
-                    <span className="text-muted-foreground">
-                      {new Date(log.timestamp).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="text-muted-foreground">
-                    {log.previousQuantity} → {log.quantity}
-                    {log.reason && ` (${log.reason})`}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Audit Log Display */}
+        {showAuditLog && stripeAccountId && (
+          <AuditLogDisplay
+            productId={product.id}
+            stripeAccountId={stripeAccountId}
+            isOpen={showAuditLog}
+            onClose={() => setShowAuditLog(false)}
+          />
         )}
 
         {/* Actions */}
