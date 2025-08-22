@@ -149,7 +149,7 @@ export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: Pro
             disabled={!stripeAccountId}
           >
             <History className="h-4 w-4 mr-2" />
-            View Audit Log
+            View Recent Changes
           </Button>
         </div>
 

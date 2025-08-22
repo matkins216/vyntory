@@ -37,7 +37,7 @@ export function AuditLogDisplay({ productId, stripeAccountId, isOpen, onClose }:
     
     try {
       const response = await fetch(
-        `/api/products/${productId}/inventory/audit-logs?stripeAccountId=${stripeAccountId}&limit=50`
+        `/api/products/${productId}/inventory/audit-logs?stripeAccountId=${stripeAccountId}&limit=5`
       );
       
       if (!response.ok) {
@@ -72,7 +72,7 @@ export function AuditLogDisplay({ productId, stripeAccountId, isOpen, onClose }:
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="flex items-center space-x-2">
             <History className="h-5 w-5" />
-            <span>Inventory Audit Log</span>
+            <span>Recent Inventory Changes (Last 5)</span>
           </CardTitle>
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
