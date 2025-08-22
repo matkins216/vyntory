@@ -53,7 +53,6 @@ export const updateInventoryMetadata = async (
   const product = await stripeInstance.products.retrieve(productId, {
     stripeAccount: stripeAccount
   });
-  const currentMetadata = getInventoryFromMetadata(product.metadata);
   
   // Create audit log in Supabase
   const auditService = new InventoryAuditService();

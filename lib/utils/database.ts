@@ -17,7 +17,7 @@ export function handleDatabaseError(error: PostgrestError | Error, operation: st
   throw new Error(`Database operation failed: ${operation}`);
 }
 
-export function validateRequiredFields(data: Record<string, any>, requiredFields: string[]): void {
+export function validateRequiredFields(data: Record<string, unknown>, requiredFields: string[]): void {
   const missingFields = requiredFields.filter(field => !data[field]);
   
   if (missingFields.length > 0) {
