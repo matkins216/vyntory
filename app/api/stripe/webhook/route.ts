@@ -6,11 +6,20 @@ import { headers } from 'next/headers';
 async function handleTestWebhook() {
   console.log('🧪 Processing test webhook...');
   
+  // Check if we have real test data available
+  const testProductId = process.env.TEST_PRODUCT_ID;
+  const testAccountId = process.env.DEFAULT_CONNECTED_ACCOUNT_ID;
+  
+  if (!testProductId || !testAccountId) {
+    console.log('🧪 No test data configured, using mock data');
+    console.log('🧪 Set TEST_PRODUCT_ID and DEFAULT_CONNECTED_ACCOUNT_ID in .env.local for real testing');
+  }
+  
   // Simulate a checkout.session.completed event
   const mockEvent = {
     type: 'checkout.session.completed',
     id: 'evt_test_' + Date.now(),
-    account: process.env.DEFAULT_CONNECTED_ACCOUNT_ID || 'acct_test',
+    account: testAccountId || 'acct_test',
     created: Math.floor(Date.now() / 1000),
     data: {
       object: {
@@ -20,7 +29,7 @@ async function handleTestWebhook() {
           data: [
             {
               price: {
-                product: process.env.TEST_PRODUCT_ID || 'prod_test'
+                product: testProductId || 'prod_test'
               },
               quantity: 1
             }
@@ -38,13 +47,17 @@ async function handleTestWebhook() {
     return NextResponse.json({ 
       success: true, 
       message: 'Test webhook processed successfully',
-      result 
+      result,
+      note: testProductId && testAccountId ? 'Using real test data' : 'Using mock data'
     });
   } catch (error) {
     console.error('🧪 Test webhook failed:', error);
     return NextResponse.json({ 
       error: 'Test webhook failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      suggestion: testProductId && testAccountId ? 
+        'Check if the test product and account exist and are accessible' : 
+        'Set TEST_PRODUCT_ID and DEFAULT_CONNECTED_ACCOUNT_ID in .env.local'
     }, { status: 500 });
   }
 }
@@ -68,9 +81,15 @@ async function processWebhookEvent(event: any) {
           
           // Retrieve the session with expanded line_items to get product details
           let expandedSession = session;
+          let canProcessSession = true;
+          
           if (!session.line_items?.data) {
             console.log('No line items in session, retrieving expanded session...');
             try {
+              // Check if this is a live or test session
+              const isLiveSession = session.id.startsWith('cs_live_');
+              console.log(`Session type: ${isLiveSession ? 'LIVE' : 'TEST'}`);
+              
               expandedSession = await stripe.checkout.sessions.retrieve(
                 session.id,
                 {
@@ -80,23 +99,36 @@ async function processWebhookEvent(event: any) {
               console.log('Retrieved expanded session with line items');
             } catch (retrieveError) {
               console.error('Error retrieving expanded session:', retrieveError);
-              // For test mode, use mock data
-              expandedSession = {
-                line_items: {
-                  data: [
-                    {
-                      price: {
-                        product: process.env.TEST_PRODUCT_ID || 'prod_test'
-                      },
-                      quantity: 1
-                    }
-                  ]
-                }
-              };
+              
+              // Don't use test data for live sessions
+              if (session.id.startsWith('cs_live_')) {
+                console.error('Cannot retrieve live session, skipping inventory update');
+                console.error('This usually means:');
+                console.error('1. The session belongs to a different Stripe account');
+                console.error('2. The webhook is not configured for the correct account');
+                console.error('3. The session has expired or been deleted');
+                console.error('4. Missing permissions to access the session');
+                canProcessSession = false;
+              } else {
+                // Only use mock data for test sessions
+                console.log('Using mock data for test session');
+                expandedSession = {
+                  line_items: {
+                    data: [
+                      {
+                        price: {
+                          product: process.env.TEST_PRODUCT_ID || 'prod_test'
+                        },
+                        quantity: 1
+                      }
+                    ]
+                  }
+                };
+              }
             }
           }
           
-          if (expandedSession.line_items?.data) {
+          if (canProcessSession && expandedSession.line_items?.data) {
             console.log(`Found ${expandedSession.line_items.data.length} line items`);
             
             for (const item of expandedSession.line_items.data) {

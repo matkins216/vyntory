@@ -201,3 +201,68 @@ node -e "const stripe = require('stripe')('sk_test_...'); stripe.products.list()
 - [ ] Webhook configured for connected account (if using account-specific webhooks)
 - [ ] Webhook endpoint accessible from Stripe servers
 - [ ] Console logging enabled to monitor webhook execution
+
+## 🚨 **Troubleshooting: Live Session Retrieval Errors**
+
+### Error: "No such checkout.session: cs_live_..."
+This error occurs when the webhook receives a live Stripe event but can't retrieve the session details.
+
+#### **Common Causes:**
+
+1. **Account Context Mismatch**
+   - The webhook is running in your main account
+   - The session belongs to a connected account
+   - Your main account doesn't have access to the connected account's sessions
+
+2. **Webhook Configuration Issues**
+   - Webhook is configured for main account only
+   - Missing Stripe Connect webhook settings
+   - Webhook not configured for connected accounts
+
+3. **Session Access Permissions**
+   - Session has expired (checkout sessions expire after 24 hours)
+   - Session was deleted
+   - Missing API permissions
+
+#### **Solutions:**
+
+1. **Configure Stripe Connect Webhooks (Recommended)**
+   ```bash
+   # In your main Stripe Dashboard:
+   # 1. Go to Connect > Settings
+   # 2. Enable "Webhooks for connected accounts"
+   # 3. Add your webhook endpoint
+   # 4. Select events: invoice.payment_succeeded, payment_intent.succeeded
+   ```
+
+2. **Use Invoice Webhooks Instead**
+   - `invoice.payment_succeeded` includes complete line items
+   - No need to retrieve checkout sessions
+   - More reliable for inventory management
+
+3. **Check Webhook Account Context**
+   - Ensure webhook is configured for connected accounts
+   - Verify `event.account` contains the connected account ID
+   - Check webhook endpoint permissions
+
+#### **Debugging Steps:**
+
+1. **Check Webhook Event Structure:**
+   ```bash
+   # Look for these fields in webhook logs:
+   - event.account (should contain connected account ID)
+   - event.type (should be invoice.payment_succeeded)
+   - event.data.object.lines.data (should contain line items)
+   ```
+
+2. **Test with Invoice Webhook:**
+   ```bash
+   # Configure webhook for invoice.payment_succeeded
+   # This eliminates the session retrieval issue
+   ```
+
+3. **Verify Account Access:**
+   ```bash
+   # Check if your main account can access connected accounts
+   # Test with a simple API call
+   ```
