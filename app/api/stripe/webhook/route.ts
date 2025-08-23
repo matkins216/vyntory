@@ -92,31 +92,74 @@ async function processWebhookEvent(event: any) {
               
               // Use the dedicated line items endpoint for better data access
               // Based on: https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil
-              const lineItemsResponse = await stripe.checkout.sessions.listLineItems(session.id, {
-                limit: 100 // Get all line items
-              });
+              console.log('Attempting to retrieve line items for session:', session.id);
               
-              if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
-                console.log(`Retrieved ${lineItemsResponse.data.length} line items using dedicated endpoint`);
-                expandedSession = {
-                  line_items: {
-                    data: lineItemsResponse.data
-                  }
-                };
-              } else {
+              try {
+                const lineItemsResponse = await stripe.checkout.sessions.listLineItems(session.id, {
+                  limit: 100 // Get all line items
+                });
+                
+                console.log('Line items API response:', {
+                  hasData: !!lineItemsResponse.data,
+                  dataLength: lineItemsResponse.data?.length || 0,
+                  responseKeys: Object.keys(lineItemsResponse)
+                });
+                
+                if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
+                  console.log(`Retrieved ${lineItemsResponse.data.length} line items using dedicated endpoint`);
+                  console.log('First line item structure:', JSON.stringify(lineItemsResponse.data[0], null, 2));
+                  
+                  // Transform the line items response to match our expected format
+                  expandedSession = {
+                    line_items: {
+                      data: lineItemsResponse.data.map(item => ({
+                        price: {
+                          product: item.price?.product || item.price?.id
+                        },
+                        quantity: item.quantity || 1,
+                        description: item.description,
+                        amount_total: item.amount_total,
+                        amount_subtotal: item.amount_subtotal
+                      }))
+                    }
+                  };
+                  
+                  console.log('Transformed line items:', JSON.stringify(expandedSession.line_items.data, null, 2));
+                } else {
+                  console.log('Line items endpoint returned no data, trying expand method...');
+                  expandedSession = await stripe.checkout.sessions.retrieve(
+                    session.id,
+                    {
+                      expand: [
+                        'line_items.data.price.product',
+                        'line_items.data.price.recurring',
+                        'line_items.data.price.currency_options'
+                      ]
+                    }
+                  );
+                  console.log('Retrieved expanded session with line items');
+                }
+              } catch (lineItemsError) {
+                console.error('Error calling line items endpoint:', lineItemsError);
+                console.log('Falling back to expand method...');
+                
                 // Fallback to the expand method if line items endpoint fails
-                console.log('Line items endpoint returned no data, trying expand method...');
-                expandedSession = await stripe.checkout.sessions.retrieve(
-                  session.id,
-                  {
-                    expand: [
-                      'line_items.data.price.product',
-                      'line_items.data.price.recurring',
-                      'line_items.data.price.currency_options'
-                    ]
-                  }
-                );
-                console.log('Retrieved expanded session with line items');
+                try {
+                  expandedSession = await stripe.checkout.sessions.retrieve(
+                    session.id,
+                    {
+                      expand: [
+                        'line_items.data.price.product',
+                        'line_items.data.price.recurring',
+                        'line_items.data.price.currency_options'
+                      ]
+                    }
+                  );
+                  console.log('Retrieved expanded session with line items (fallback)');
+                } catch (expandError) {
+                  console.error('Expand method also failed:', expandError);
+                  throw expandError;
+                }
               }
             } catch (retrieveError) {
               console.error('Error retrieving expanded session:', retrieveError);
@@ -457,6 +500,7 @@ async function processWebhookEvent(event: any) {
             
             if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
               console.log(`Found ${lineItemsResponse.data.length} line items using dedicated endpoint`);
+              console.log('Line items response structure:', JSON.stringify(lineItemsResponse.data[0], null, 2));
               
               for (const item of lineItemsResponse.data) {
                 if (item.price?.product) {
@@ -736,12 +780,57 @@ async function processWebhookEvent(event: any) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const url = new URL(request.url);
+  const testSessionId = url.searchParams.get('test_session');
+  
+  if (testSessionId) {
+    console.log('🧪 Testing line items endpoint with session:', testSessionId);
+    
+    try {
+      // Test the line items endpoint
+      const lineItemsResponse = await stripe.checkout.sessions.listLineItems(testSessionId, {
+        limit: 10
+      });
+      
+      console.log('🧪 Line items test response:', {
+        hasData: !!lineItemsResponse.data,
+        dataLength: lineItemsResponse.data?.length || 0,
+        responseKeys: Object.keys(lineItemsResponse),
+        firstItem: lineItemsResponse.data?.[0] ? {
+          id: lineItemsResponse.data[0].id,
+          quantity: lineItemsResponse.data[0].quantity,
+          price: lineItemsResponse.data[0].price,
+          description: lineItemsResponse.data[0].description
+        } : null
+      });
+      
+      return NextResponse.json({ 
+        message: 'Line items test completed',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
+        testMode: 'Line items endpoint test',
+        result: {
+          hasData: !!lineItemsResponse.data,
+          dataLength: lineItemsResponse.data?.length || 0,
+          firstItem: lineItemsResponse.data?.[0] || null
+        }
+      });
+    } catch (error) {
+      console.error('🧪 Line items test failed:', error);
+      return NextResponse.json({ 
+        error: 'Line items test failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }, { status: 500 });
+    }
+  }
+  
   return NextResponse.json({ 
     message: 'Webhook endpoint is working',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    testMode: 'Add ?test=true to trigger test webhook processing'
+    testMode: 'Add ?test=true to trigger test webhook processing',
+    lineItemsTest: 'Add ?test_session=cs_xxx to test line items endpoint'
   });
 }
 
