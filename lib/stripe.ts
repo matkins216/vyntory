@@ -85,15 +85,10 @@ export const updateInventoryMetadata = async (
     stripeAccount: stripeAccount
   });
 
-  // If inventory reaches zero, disable the product
-  if (newQuantity <= 0) {
-    await stripeInstance.products.update(productId, {
-      active: false
-    }, {
-      stripeAccount: stripeAccount
-    });
-  } else if (!product.active && newQuantity > 0) {
-    // Re-enable product if inventory is restored
+  // Keep product active even with 0 inventory - don't archive it
+  // This allows customers to see the product but know it's out of stock
+  if (!product.active && newQuantity >= 0) {
+    // Only re-enable product if it was disabled and inventory is restored
     await stripeInstance.products.update(productId, {
       active: true
     }, {
