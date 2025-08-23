@@ -74,6 +74,11 @@ async function processWebhookEvent(event: any) {
       case 'checkout.session.completed':
         const session = event.data.object;
         console.log('Processing checkout.session.completed:', session.id);
+        console.log('Event account (connected account ID):', event.account);
+        console.log('Session mode:', session.mode);
+        console.log('Session payment status:', session.payment_status);
+        console.log('Session has line_items:', !!session.line_items?.data);
+        console.log('Session line_items count:', session.line_items?.data?.length || 0);
         
         // Check if this is a payment session (not subscription)
         if (session.mode === 'payment') {
@@ -91,8 +96,21 @@ async function processWebhookEvent(event: any) {
               // Based on: https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil
               console.log('Attempting to retrieve line items for session:', session.id);
               
+              // Get the connected account ID first
+              const connectedAccountId = event.account;
+              if (!connectedAccountId) {
+                console.error('No connected account ID found in webhook event');
+                console.log('Webhook event structure:', JSON.stringify(event, null, 2));
+                console.log('This webhook may not be configured for connected accounts');
+                break;
+              }
+              
+              console.log(`Retrieving line items for connected account: ${connectedAccountId}`);
+              
               const lineItemsResponse = await stripe.checkout.sessions.listLineItems(session.id, {
                 limit: 100 // Get all line items
+              }, {
+                stripeAccount: connectedAccountId // Important: Use the connected account context
               });
               
               console.log('Line items API response:', {
