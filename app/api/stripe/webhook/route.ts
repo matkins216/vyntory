@@ -195,7 +195,7 @@ async function processWebhookEvent(event: any) {
                 try {
                   // Get current product from the connected account with expanded data
                   const product = await stripe.products.retrieve(productId, {
-                    expand: ['default_price', 'features', 'tax_code']
+                    expand: ['default_price', 'tax_code']
                   }, {
                     stripeAccount: connectedAccountId
                   });
@@ -274,7 +274,7 @@ async function processWebhookEvent(event: any) {
                 try {
                   // Get current product from the connected account with expanded data
                   const product = await stripe.products.retrieve(productId, {
-                    expand: ['default_price', 'features', 'tax_code']
+                    expand: ['default_price', 'tax_code']
                   }, {
                     stripeAccount: paymentLinkAccountId
                   });
@@ -344,7 +344,7 @@ async function processWebhookEvent(event: any) {
               try {
                 // Get current product from the connected account with expanded data
                 const product = await stripe.products.retrieve(productId, {
-                  expand: ['default_price', 'features', 'tax_code']
+                  expand: ['default_price', 'tax_code']
                 }, {
                   stripeAccount: invoiceAccountId
                 });
@@ -432,7 +432,7 @@ async function processWebhookEvent(event: any) {
           try {
                 // Get current product from the connected account with expanded data
                 const product = await stripe.products.retrieve(productId, {
-                  expand: ['default_price', 'features', 'tax_code']
+                  expand: ['default_price', 'tax_code']
                 }, {
                   stripeAccount: chargeAccountId
                 });
@@ -499,7 +499,7 @@ async function processWebhookEvent(event: any) {
               try {
                 // Get current product from the connected account with expanded data
                 const product = await stripe.products.retrieve(productId, {
-                  expand: ['default_price', 'features', 'tax_code']
+                  expand: ['default_price', 'tax_code']
                 }, {
                   stripeAccount: subscriptionAccountId
                 });
