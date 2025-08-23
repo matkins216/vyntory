@@ -81,7 +81,7 @@ async function processWebhookEvent(event: any) {
           
           // For checkout sessions, we need to work with what's available in the webhook event
           // Trying to retrieve additional data often fails due to account context issues
-          let expandedSession = session;
+          const expandedSession = session;
           
           if (!session.line_items?.data) {
             console.log('No line items in webhook event, webhook may not be configured for line items expansion');
@@ -112,7 +112,7 @@ async function processWebhookEvent(event: any) {
                 console.log(`Processing product ${productId}, quantity: ${quantity}`);
                 
                 // For connected accounts, the webhook event should contain the account ID
-                let connectedAccountId = event.account;
+                const connectedAccountId = event.account;
                 
                 if (!connectedAccountId) {
                   console.error('No connected account ID found in webhook event');
