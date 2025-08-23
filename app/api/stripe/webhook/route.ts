@@ -84,17 +84,68 @@ async function processWebhookEvent(event: any) {
           const expandedSession = session;
           
           if (!session.line_items?.data) {
-            console.log('No line items in webhook event, webhook may not be configured for line items expansion');
-            console.log('Session data available:', JSON.stringify(session, null, 2));
+            console.log('No line items in webhook event, retrieving using dedicated line items endpoint...');
             
-            // Check if we have basic session info we can work with
-            if (session.amount_total && session.currency) {
-              console.log(`Session has total amount: ${session.amount_total} ${session.currency}`);
-              console.log('But no line items - webhook needs to be configured for line items expansion');
+            try {
+              // Use the dedicated line items endpoint for better data access
+              // Based on: https://docs.stripe.com/api/checkout/sessions/line_items?api-version=2025-07-30.basil
+              console.log('Attempting to retrieve line items for session:', session.id);
               
-              // Skip processing since we can't determine what products were purchased
-              console.log('Skipping inventory update - insufficient product information');
-              break;
+              const lineItemsResponse = await stripe.checkout.sessions.listLineItems(session.id, {
+                limit: 100 // Get all line items
+              });
+              
+              console.log('Line items API response:', {
+                hasData: !!lineItemsResponse.data,
+                dataLength: lineItemsResponse.data?.length || 0,
+                responseKeys: Object.keys(lineItemsResponse)
+              });
+              
+              if (lineItemsResponse.data && lineItemsResponse.data.length > 0) {
+                console.log(`Retrieved ${lineItemsResponse.data.length} line items using dedicated endpoint`);
+                console.log('First line item structure:', JSON.stringify(lineItemsResponse.data[0], null, 2));
+                
+                // Transform the line items response to match our expected format
+                expandedSession.line_items = {
+                  data: lineItemsResponse.data.map(item => ({
+                    price: {
+                      product: item.price?.product || item.price?.id
+                    },
+                    quantity: item.quantity || 1,
+                    description: item.description,
+                    amount_total: item.amount_total,
+                    amount_subtotal: item.amount_subtotal
+                  }))
+                };
+                
+                console.log('Transformed line items:', JSON.stringify(expandedSession.line_items.data, null, 2));
+              } else {
+                console.log('Line items endpoint returned no data');
+                console.log('Session data available:', JSON.stringify(session, null, 2));
+                
+                // Check if we have basic session info we can work with
+                if (session.amount_total && session.currency) {
+                  console.log(`Session has total amount: ${session.amount_total} ${session.currency}`);
+                  console.log('But no line items - webhook needs to be configured for line items expansion');
+                  
+                  // Skip processing since we can't determine what products were purchased
+                  console.log('Skipping inventory update - insufficient product information');
+                  break;
+                }
+              }
+            } catch (lineItemsError) {
+              console.error('Error calling line items endpoint:', lineItemsError);
+              console.log('Session data available:', JSON.stringify(session, null, 2));
+              
+              // Check if we have basic session info we can work with
+              if (session.amount_total && session.currency) {
+                console.log(`Session has total amount: ${session.amount_total} ${session.currency}`);
+                console.log('But no line items - webhook needs to be configured for line items expansion');
+                
+                // Skip processing since we can't determine what products were purchased
+                console.log('Skipping inventory update - insufficient product information');
+                break;
+              }
             }
           }
           
