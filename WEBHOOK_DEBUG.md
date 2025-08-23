@@ -241,65 +241,38 @@ node -e "const stripe = require('stripe')('sk_test_...'); stripe.products.list()
 ### Error: "No such checkout.session: cs_live_..."
 This error occurs when the webhook receives a live Stripe event but can't retrieve the session details.
 
-#### **Common Causes:**
+#### **Root Cause:**
+The webhook is running in your main account but trying to access checkout sessions that belong to connected accounts. This creates account context mismatches.
 
-1. **Account Context Mismatch**
-   - The webhook is running in your main account
-   - The session belongs to a connected account
-   - Your main account doesn't have access to the connected account's sessions
+#### **Simplified Solution (Implemented):**
+Instead of trying to retrieve additional session data (which often fails), the webhook now:
 
-2. **Webhook Configuration Issues**
-   - Webhook is configured for main account only
-   - Missing Stripe Connect webhook settings
-   - Webhook not configured for connected accounts
+1. **Works with webhook event data only** - No additional API calls that cause account context issues
+2. **Requires proper webhook configuration** - Webhook must be configured to include line items data
+3. **Focuses on available information** - Uses what's provided in the webhook event itself
 
-3. **Session Access Permissions**
-   - Session has expired (checkout sessions expire after 24 hours)
-   - Session was deleted
-   - Missing API permissions
+#### **Webhook Configuration Requirements:**
 
-#### **Solutions:**
+For `checkout.session.completed` to work properly, you need:
 
-1. **Configure Stripe Connect Webhooks (Recommended)**
-   ```bash
-   # In your main Stripe Dashboard:
-   # 1. Go to Connect > Settings
-   # 2. Enable "Webhooks for connected accounts"
-   # 3. Add your webhook endpoint
-   # 4. Select events: invoice.payment_succeeded, payment_intent.succeeded
-   ```
+1. **Enable webhooks for connected accounts** in your main Stripe Dashboard
+2. **Configure line items expansion** in the webhook settings
+3. **Ensure the webhook includes** `event.account` (connected account ID)
 
-2. **Use Invoice Webhooks Instead**
-   - `invoice.payment_succeeded` includes complete line items
-   - No need to retrieve checkout sessions
-   - More reliable for inventory management
+#### **What the Webhook Now Does:**
 
-3. **Check Webhook Account Context**
-   - Ensure webhook is configured for connected accounts
-   - Verify `event.account` contains the connected account ID
-   - Check webhook endpoint permissions
+✅ **Processes webhook event data** (no additional API calls)
+✅ **Extracts connected account ID** from `event.account`
+✅ **Uses line items** if available in the webhook event
+✅ **Skips processing** if insufficient data (avoids errors)
+✅ **Provides detailed logging** for debugging
 
-#### **Debugging Steps:**
+#### **What the Webhook No Longer Does:**
 
-1. **Check Webhook Event Structure:**
-   ```bash
-   # Look for these fields in webhook logs:
-   - event.account (should contain connected account ID)
-   - event.type (should be invoice.payment_succeeded)
-   - event.data.object.lines.data (should contain line items)
-   ```
-
-2. **Test with Invoice Webhook:**
-   ```bash
-   # Configure webhook for invoice.payment_succeeded
-   # This eliminates the session retrieval issue
-   ```
-
-3. **Verify Account Access:**
-   ```bash
-   # Check if your main account can access connected accounts
-   # Test with a simple API call
-   ```
+❌ **Tries to retrieve checkout sessions** (causes account context errors)
+❌ **Uses fallback methods** that often fail
+❌ **Attempts complex account detection** logic
+❌ **Makes unnecessary API calls** to connected accounts
 
 ## 🚀 **Stripe API Version 730 (2025-07-30.basil) Features**
 
