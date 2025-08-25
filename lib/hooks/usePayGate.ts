@@ -94,7 +94,7 @@ export function usePayGate({
 // Hook for checking if user has access to specific features
 export function useFeatureAccess(
   stripeAccountId: string,
-  feature: keyof ConnectCustomer['plan_features']
+  feature: keyof NonNullable<ConnectCustomer['plan_features']>
 ) {
   const { isAuthorized, customer, isLoading } = usePayGate({
     stripeAccountId,

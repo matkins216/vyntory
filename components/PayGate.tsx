@@ -59,7 +59,7 @@ export function PayGate({
 
 interface FeatureGateProps {
   stripeAccountId: string;
-  feature: keyof import('@/lib/types/connect-customer').PlanFeatures;
+  feature: keyof NonNullable<import('@/lib/types/connect-customer').ConnectCustomer['plan_features']>;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
