@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 import { ConnectCustomerService } from '@/lib/services/connect-customer';
+import type Stripe from 'stripe';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify webhook signature
-    let event;
+    let event: Stripe.Event;
     try {
       event = stripe.webhooks.constructEvent(
         body,
@@ -51,6 +52,11 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        if (!customerId) {
+          console.error('No customer ID in subscription');
+          break;
+        }
+
         try {
           // Get customer details from Stripe
           const customer = await stripe.customers.retrieve(customerId, {
@@ -65,8 +71,33 @@ export async function POST(request: NextRequest) {
           });
 
           // Determine plan name from the first item
-          const firstItem = subscriptionDetails.items.data[0];
-          const planName = firstItem?.price?.product?.name || 'Unknown Plan';
+          const firstItem = subscriptionDetails.items?.data?.[0];
+          let planName = 'Unknown Plan';
+          
+          if (firstItem?.price?.product) {
+            const product = firstItem.price.product;
+            if (typeof product === 'string') {
+              // Product is just an ID, we need to fetch it to get the name
+              try {
+                const productDetails = await stripe.products.retrieve(product, {
+                  stripeAccount: accountId
+                });
+                planName = productDetails.name || 'Unknown Plan';
+              } catch (productError) {
+                console.error('Error fetching product details:', productError);
+                planName = 'Unknown Plan';
+              }
+            } else {
+              // Product is expanded object
+              planName = product.name || 'Unknown Plan';
+            }
+          }
+
+          // Validate required subscription fields
+          if (!subscription.current_period_start || !subscription.current_period_end) {
+            console.error('Missing required subscription period data');
+            break;
+          }
 
           // Create or update customer in our database
           await connectService.createOrUpdateCustomer({
@@ -108,16 +139,24 @@ export async function POST(request: NextRequest) {
         const invoice = event.data.object;
         const invoiceAccountId = event.account;
         
-        if (invoiceAccountId && invoice.subscription) {
-          try {
-            // Update subscription status to active
-            await connectService.updateSubscriptionStatus(invoiceAccountId, {
-              subscription_status: 'active'
-            });
-            console.log(`Updated subscription status to active for account ${invoiceAccountId}`);
-          } catch (error) {
-            console.error('Error processing invoice payment:', error);
-          }
+        if (!invoiceAccountId) {
+          console.error('No connected account ID in invoice webhook event');
+          break;
+        }
+
+        if (!invoice.subscription) {
+          console.error('No subscription in invoice webhook event');
+          break;
+        }
+
+        try {
+          // Update subscription status to active
+          await connectService.updateSubscriptionStatus(invoiceAccountId, {
+            subscription_status: 'active'
+          });
+          console.log(`Updated subscription status to active for account ${invoiceAccountId}`);
+        } catch (error) {
+          console.error('Error processing invoice payment:', error);
         }
         break;
 
@@ -125,16 +164,24 @@ export async function POST(request: NextRequest) {
         const failedInvoice = event.data.object;
         const failedAccountId = event.account;
         
-        if (failedAccountId && failedInvoice.subscription) {
-          try {
-            // Update subscription status to past_due
-            await connectService.updateSubscriptionStatus(failedAccountId, {
-              subscription_status: 'past_due'
-            });
-            console.log(`Updated subscription status to past_due for account ${failedAccountId}`);
-          } catch (error) {
-            console.error('Error processing failed invoice:', error);
-          }
+        if (!failedAccountId) {
+          console.error('No connected account ID in failed invoice webhook event');
+          break;
+        }
+
+        if (!failedInvoice.subscription) {
+          console.error('No subscription in failed invoice webhook event');
+          break;
+        }
+
+        try {
+          // Update subscription status to past_due
+          await connectService.updateSubscriptionStatus(failedAccountId, {
+            subscription_status: 'past_due'
+          });
+          console.log(`Updated subscription status to past_due for account ${failedAccountId}`);
+        } catch (error) {
+          console.error('Error processing failed invoice:', error);
         }
         break;
 
