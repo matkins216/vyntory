@@ -89,7 +89,11 @@ export async function POST(request: NextRequest) {
               }
             } else {
               // Product is expanded object
-              planName = product.name || 'Unknown Plan';
+              if ('name' in product && product.name) {
+                planName = product.name;
+              } else {
+                planName = 'Unknown Plan';
+              }
             }
           }
 
