@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { stripe } from '@/lib/stripe';
 import { ConnectCustomerService } from '@/lib/services/connect-customer';
 import type Stripe from 'stripe';
+import { ConnectCustomer } from '@/lib/types/connect-customer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,11 +20,21 @@ export async function POST(request: NextRequest) {
 
     // Verify webhook signature
     let event: Stripe.Event;
+    
+    const webhookSecret = process.env.STRIPE_PAY_GATE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('Missing STRIPE_PAY_GATE_WEBHOOK_SECRET environment variable');
+      return NextResponse.json(
+        { error: 'Webhook secret not configured' },
+        { status: 500 }
+      );
+    }
+    
     try {
       event = stripe.webhooks.constructEvent(
         body,
         signature,
-        process.env.STRIPE_PAY_GATE_WEBHOOK_SECRET || ''
+        webhookSecret
       );
     } catch (err) {
       console.error('Webhook signature verification failed:', err);
@@ -74,8 +85,8 @@ export async function POST(request: NextRequest) {
             customerName = undefined;
           } else {
             // Customer is active
-            customerEmail = customerResponse.email;
-            customerName = customerResponse.name;
+            customerEmail = customerResponse.email || undefined;
+            customerName = customerResponse.name || undefined;
           }
 
           // Get subscription details with expanded data
@@ -105,11 +116,34 @@ export async function POST(request: NextRequest) {
             } else {
               // Product is expanded object
               if ('name' in product && product.name) {
-                planName = product.name;
+                planName = product.name || 'Unknown Plan';
               } else {
                 planName = 'Unknown Plan';
               }
             }
+          }
+
+          // Map Stripe subscription status to our expected format
+          const mapSubscriptionStatus = (stripeStatus: string): ConnectCustomer['subscription_status'] => {
+            switch (stripeStatus) {
+              case 'active':
+              case 'trialing':
+              case 'past_due':
+              case 'canceled':
+              case 'incomplete':
+              case 'incomplete_expired':
+              case 'unpaid':
+                return stripeStatus as ConnectCustomer['subscription_status'];
+              default:
+                console.warn(`Unknown subscription status: ${stripeStatus}, defaulting to inactive`);
+                return 'inactive';
+            }
+          };
+
+          // Validate subscription data
+          if (!subscriptionDetails.current_period_start || !subscriptionDetails.current_period_end) {
+            console.error('Missing required subscription period data');
+            break;
           }
 
           // Create or update customer in our database
@@ -118,7 +152,7 @@ export async function POST(request: NextRequest) {
             stripe_customer_id: customerId,
             email: customerEmail,
             company_name: customerName,
-            subscription_status: subscriptionDetails.status,
+            subscription_status: mapSubscriptionStatus(subscriptionDetails.status),
             subscription_id: subscriptionDetails.id,
             plan_name: planName,
             current_period_start: new Date(subscriptionDetails.current_period_start * 1000).toISOString(),
@@ -130,6 +164,7 @@ export async function POST(request: NextRequest) {
           console.log(`Updated customer ${accountId} with subscription ${subscriptionDetails.id}`);
         } catch (error) {
           console.error('Error processing subscription webhook:', error);
+          // Continue processing other webhooks even if one fails
         }
         break;
 
@@ -148,6 +183,7 @@ export async function POST(request: NextRequest) {
           console.log(`Marked subscription as canceled for account ${deletedAccountId}`);
         } catch (error) {
           console.error('Error processing subscription deletion:', error);
+          // Continue processing other webhooks even if one fails
         }
         break;
 
@@ -173,6 +209,7 @@ export async function POST(request: NextRequest) {
           console.log(`Updated subscription status to active for account ${invoiceAccountId}`);
         } catch (error) {
           console.error('Error processing invoice payment:', error);
+          // Continue processing other webhooks even if one fails
         }
         break;
 
@@ -198,6 +235,7 @@ export async function POST(request: NextRequest) {
           console.log(`Updated subscription status to past_due for account ${failedAccountId}`);
         } catch (error) {
           console.error('Error processing failed invoice:', error);
+          // Continue processing other webhooks even if one fails
         }
         break;
 
@@ -208,8 +246,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error('Error processing pay gate webhook:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }

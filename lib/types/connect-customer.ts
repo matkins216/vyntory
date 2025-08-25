@@ -4,7 +4,7 @@ export interface ConnectCustomer {
   stripe_customer_id?: string;
   email?: string;
   company_name?: string;
-  subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled' | 'trialing';
+  subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | 'incomplete_expired' | 'unpaid';
   subscription_id?: string;
   plan_name: string;
   plan_features?: PlanFeatures;
