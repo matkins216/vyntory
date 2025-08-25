@@ -59,9 +59,24 @@ export async function POST(request: NextRequest) {
 
         try {
           // Get customer details from Stripe
-          const customer = await stripe.customers.retrieve(customerId, {
+          const customerResponse = await stripe.customers.retrieve(customerId, {
             stripeAccount: accountId
           });
+
+          // Handle different customer types
+          let customerEmail: string | undefined;
+          let customerName: string | undefined;
+
+          if (customerResponse.deleted) {
+            // Customer was deleted
+            console.log('Customer was deleted, using default values');
+            customerEmail = undefined;
+            customerName = undefined;
+          } else {
+            // Customer is active
+            customerEmail = customerResponse.email;
+            customerName = customerResponse.name;
+          }
 
           // Get subscription details with expanded data
           const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
@@ -101,8 +116,8 @@ export async function POST(request: NextRequest) {
           await connectService.createOrUpdateCustomer({
             stripe_account_id: accountId,
             stripe_customer_id: customerId,
-            email: typeof customer === 'string' ? undefined : customer.email,
-            company_name: typeof customer === 'string' ? undefined : customer.name,
+            email: customerEmail,
+            company_name: customerName,
             subscription_status: subscriptionDetails.status,
             subscription_id: subscriptionDetails.id,
             plan_name: planName,
@@ -119,7 +134,6 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'customer.subscription.deleted':
-        const deletedSubscriptionEvent = event.data.object as Stripe.Subscription;
         const deletedAccountId = event.account;
         
         if (!deletedAccountId) {
