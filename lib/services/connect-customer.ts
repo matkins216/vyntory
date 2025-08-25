@@ -1,5 +1,5 @@
 import { createServerSupabaseClient } from '@/lib/supabase/client';
-import { ConnectCustomer, PayGateCheckResult, SubscriptionPlan } from '@/lib/types/connect-customer';
+import { ConnectCustomer, PayGateCheckResult } from '@/lib/types/connect-customer';
 import { stripe } from '@/lib/stripe';
 
 export class ConnectCustomerService {

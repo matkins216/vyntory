@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ConnectCustomer, PayGateCheckResult } from '@/lib/types/connect-customer';
 
 interface UsePayGateOptions {
@@ -28,7 +28,7 @@ export function usePayGate({
   const [customer, setCustomer] = useState<ConnectCustomer | undefined>();
   const [error, setError] = useState<string | undefined>();
 
-  const checkAuthorization = async () => {
+  const checkAuthorization = useCallback(async () => {
     if (!stripeAccountId) {
       setError('No Stripe account ID provided');
       return;
@@ -69,17 +69,17 @@ export function usePayGate({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [stripeAccountId, requireActiveSubscription, allowTrial]);
 
-  const refreshAuthorization = async () => {
+  const refreshAuthorization = useCallback(async () => {
     await checkAuthorization();
-  };
+  }, [checkAuthorization]);
 
   useEffect(() => {
     if (autoCheck && stripeAccountId) {
       checkAuthorization();
     }
-  }, [stripeAccountId, autoCheck]);
+  }, [autoCheck, stripeAccountId, checkAuthorization]);
 
   return {
     isAuthorized,
