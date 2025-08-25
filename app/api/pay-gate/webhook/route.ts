@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
             stripeAccount: accountId
           });
 
-          // Extract the subscription data from the response
-          const subscriptionDetails = subscriptionResponse.data;
+          // Type assertion to resolve Response type mismatch
+          const subscriptionDetails = subscriptionResponse as unknown as Stripe.Subscription;
 
           // Determine plan name from the first item
           const firstItem = subscriptionDetails.items?.data?.[0];
