@@ -96,16 +96,8 @@ export async function POST(request: NextRequest) {
             stripeAccount: accountId
           });
 
-          // Extract the subscription data from the response and ensure proper typing
-          const subscriptionDetails = subscriptionResponse as Stripe.Subscription & {
-            items: {
-              data: Array<{
-                price: Stripe.Price & {
-                  product: Stripe.Product;
-                };
-              }>;
-            };
-          };
+          // Use the response directly - Stripe types handle the expansion
+          const subscriptionDetails = subscriptionResponse;
 
           // Determine plan name from the first item
           const firstItem = subscriptionDetails.items?.data?.[0];
@@ -113,8 +105,25 @@ export async function POST(request: NextRequest) {
           
           if (firstItem?.price?.product) {
             const product = firstItem.price.product;
-            // Product is now properly expanded, so we can access the name directly
-            planName = product.name || 'Unknown Plan';
+            if (typeof product === 'string') {
+              // Product is just an ID, we need to fetch it to get the name
+              try {
+                const productResponse = await stripe.products.retrieve(product, {
+                  stripeAccount: accountId
+                });
+                planName = productResponse.name || 'Unknown Plan';
+              } catch (productError) {
+                console.error('Error fetching product details:', productError);
+                planName = 'Unknown Plan';
+              }
+            } else {
+              // Product is expanded object
+              if ('name' in product && product.name) {
+                planName = product.name || 'Unknown Plan';
+              } else {
+                planName = 'Unknown Plan';
+              }
+            }
           }
 
           // Map Stripe subscription status to our expected format
