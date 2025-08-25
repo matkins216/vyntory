@@ -90,14 +90,11 @@ export async function POST(request: NextRequest) {
           }
 
           // Get subscription details with expanded data
-          const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
+          const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
             expand: ['items.data.price.product']
           }, {
             stripeAccount: accountId
           });
-
-          // Extract the subscription data from the response
-          const subscriptionDetails = subscriptionResponse.data;
 
           // Determine plan name from the first item
           const firstItem = subscriptionDetails.items?.data?.[0];
