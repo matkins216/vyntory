@@ -84,17 +84,28 @@ export async function POST(request: NextRequest) {
             customerEmail = undefined;
             customerName = undefined;
           } else {
-            // Customer is active
+            // Customer is active - properly typed
             customerEmail = customerResponse.email || undefined;
             customerName = customerResponse.name || undefined;
           }
 
           // Get subscription details with expanded data
-          const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
+          const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
             expand: ['items.data.price.product']
           }, {
             stripeAccount: accountId
           });
+
+          // Extract the subscription data from the response and ensure proper typing
+          const subscriptionDetails = subscriptionResponse as Stripe.Subscription & {
+            items: {
+              data: Array<{
+                price: Stripe.Price & {
+                  product: Stripe.Product;
+                };
+              }>;
+            };
+          };
 
           // Determine plan name from the first item
           const firstItem = subscriptionDetails.items?.data?.[0];
@@ -102,25 +113,8 @@ export async function POST(request: NextRequest) {
           
           if (firstItem?.price?.product) {
             const product = firstItem.price.product;
-            if (typeof product === 'string') {
-              // Product is just an ID, we need to fetch it to get the name
-              try {
-                const productDetails = await stripe.products.retrieve(product, {
-                  stripeAccount: accountId
-                });
-                planName = productDetails.name || 'Unknown Plan';
-              } catch (productError) {
-                console.error('Error fetching product details:', productError);
-                planName = 'Unknown Plan';
-              }
-            } else {
-              // Product is expanded object
-              if ('name' in product && product.name) {
-                planName = product.name || 'Unknown Plan';
-              } else {
-                planName = 'Unknown Plan';
-              }
-            }
+            // Product is now properly expanded, so we can access the name directly
+            planName = product.name || 'Unknown Plan';
           }
 
           // Map Stripe subscription status to our expected format
