@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ConnectCustomerService } from '@/lib/services/connect-customer';
+import { ConnectCustomer } from '@/lib/types/connect-customer';
 
 export interface PayGateMiddlewareOptions {
   redirectTo?: string;
@@ -11,7 +12,7 @@ export async function checkPayGateAuthorization(
   request: NextRequest,
   stripeAccountId: string,
   options: PayGateMiddlewareOptions = {}
-): Promise<{ isAuthorized: boolean; customer?: {}; redirectUrl?: string }> {
+): Promise<{ isAuthorized: boolean; customer?: ConnectCustomer; redirectUrl?: string }> {
   const {
     redirectTo = '/dashboard/subscription',
     requireActiveSubscription = true,
