@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
           };
 
           // Validate subscription data
-          if (!subscriptionDetails.current_period_start || !subscriptionDetails.current_period_end) {
+          if (!(subscriptionDetails as any).current_period_start || !(subscriptionDetails as any).current_period_end) {
             console.error('Missing required subscription period data');
             break;
           }
@@ -158,8 +158,8 @@ export async function POST(request: NextRequest) {
             subscription_status: mapSubscriptionStatus(subscriptionDetails.status),
             subscription_id: subscriptionDetails.id,
             plan_name: planName,
-            current_period_start: new Date(subscriptionDetails.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(subscriptionDetails.current_period_end * 1000).toISOString(),
+            current_period_start: new Date((subscriptionDetails as any).current_period_start * 1000).toISOString(),
+            current_period_end: new Date((subscriptionDetails as any).current_period_end * 1000).toISOString(),
             trial_end: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000).toISOString() : undefined,
             is_active: subscriptionDetails.status === 'active' || subscriptionDetails.status === 'trialing'
           });
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        if (!invoiceEvent.subscription) {
+        if (!(invoiceEvent as any).subscription) {
           console.error('No subscription in invoice webhook event');
           break;
         }
@@ -225,7 +225,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        if (!failedInvoiceEvent.subscription) {
+        if (!(failedInvoiceEvent as any).subscription) {
           console.error('No subscription in failed invoice webhook event');
           break;
         }
