@@ -40,11 +40,11 @@ export async function POST(request: NextRequest) {
     switch (event.type) {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        const subscription = event.data.object;
-        console.log('Processing subscription:', subscription.id);
+        const subscriptionEvent = event.data.object as Stripe.Subscription;
+        console.log('Processing subscription:', subscriptionEvent.id);
         
         // Extract customer and account information
-        const customerId = subscription.customer as string;
+        const customerId = subscriptionEvent.customer as string;
         const accountId = event.account; // Connected account ID
         
         if (!accountId) {
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
             stripeAccount: accountId
           });
 
-          // Get subscription details
-          const subscriptionDetails = await stripe.subscriptions.retrieve(subscription.id, {
+          // Get subscription details with expanded data
+          const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionEvent.id, {
             expand: ['items.data.price.product']
           }, {
             stripeAccount: accountId
@@ -97,50 +97,48 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Validate required subscription fields
-          if (!subscription.current_period_start || !subscription.current_period_end) {
-            console.error('Missing required subscription period data');
-            break;
-          }
-
           // Create or update customer in our database
           await connectService.createOrUpdateCustomer({
             stripe_account_id: accountId,
             stripe_customer_id: customerId,
             email: typeof customer === 'string' ? undefined : customer.email,
             company_name: typeof customer === 'string' ? undefined : customer.name,
-            subscription_status: subscription.status,
-            subscription_id: subscription.id,
+            subscription_status: subscriptionDetails.status,
+            subscription_id: subscriptionDetails.id,
             plan_name: planName,
-            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            trial_end: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : undefined,
-            is_active: subscription.status === 'active' || subscription.status === 'trialing'
+            current_period_start: new Date(subscriptionDetails.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscriptionDetails.current_period_end * 1000).toISOString(),
+            trial_end: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000).toISOString() : undefined,
+            is_active: subscriptionDetails.status === 'active' || subscriptionDetails.status === 'trialing'
           });
 
-          console.log(`Updated customer ${accountId} with subscription ${subscription.id}`);
+          console.log(`Updated customer ${accountId} with subscription ${subscriptionDetails.id}`);
         } catch (error) {
           console.error('Error processing subscription webhook:', error);
         }
         break;
 
       case 'customer.subscription.deleted':
+        const deletedSubscriptionEvent = event.data.object as Stripe.Subscription;
         const deletedAccountId = event.account;
         
-        if (deletedAccountId) {
-          try {
-            await connectService.updateSubscriptionStatus(deletedAccountId, {
-              subscription_status: 'canceled'
-            });
-            console.log(`Marked subscription as canceled for account ${deletedAccountId}`);
-          } catch (error) {
-            console.error('Error processing subscription deletion:', error);
-          }
+        if (!deletedAccountId) {
+          console.error('No connected account ID in deleted subscription webhook event');
+          break;
+        }
+
+        try {
+          await connectService.updateSubscriptionStatus(deletedAccountId, {
+            subscription_status: 'canceled'
+          });
+          console.log(`Marked subscription as canceled for account ${deletedAccountId}`);
+        } catch (error) {
+          console.error('Error processing subscription deletion:', error);
         }
         break;
 
       case 'invoice.payment_succeeded':
-        const invoice = event.data.object;
+        const invoiceEvent = event.data.object as Stripe.Invoice;
         const invoiceAccountId = event.account;
         
         if (!invoiceAccountId) {
@@ -148,7 +146,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        if (!invoice.subscription) {
+        if (!invoiceEvent.subscription) {
           console.error('No subscription in invoice webhook event');
           break;
         }
@@ -165,7 +163,7 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'invoice.payment_failed':
-        const failedInvoice = event.data.object;
+        const failedInvoiceEvent = event.data.object as Stripe.Invoice;
         const failedAccountId = event.account;
         
         if (!failedAccountId) {
@@ -173,7 +171,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
-        if (!failedInvoice.subscription) {
+        if (!failedInvoiceEvent.subscription) {
           console.error('No subscription in failed invoice webhook event');
           break;
         }
