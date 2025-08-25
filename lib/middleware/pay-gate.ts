@@ -11,7 +11,7 @@ export async function checkPayGateAuthorization(
   request: NextRequest,
   stripeAccountId: string,
   options: PayGateMiddlewareOptions = {}
-): Promise<{ isAuthorized: boolean; customer?: any; redirectUrl?: string }> {
+): Promise<{ isAuthorized: boolean; customer?: {}; redirectUrl?: string }> {
   const {
     redirectTo = '/dashboard/subscription',
     requireActiveSubscription = true,
