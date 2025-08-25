@@ -78,15 +78,15 @@ export async function POST(request: NextRequest) {
           let customerEmail: string | undefined;
           let customerName: string | undefined;
 
-          if (customerResponse.data.deleted) {
+          if (customerResponse.deleted) {
             // Customer was deleted
             console.log('Customer was deleted, using default values');
             customerEmail = undefined;
             customerName = undefined;
           } else {
             // Customer is active - properly typed
-            customerEmail = customerResponse.data.email || undefined;
-            customerName = customerResponse.data.name || undefined;
+            customerEmail = customerResponse.email || undefined;
+            customerName = customerResponse.name || undefined;
           }
 
           // Get subscription details with expanded data
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
                 const productResponse = await stripe.products.retrieve(product, {
                   stripeAccount: accountId
                 });
-                planName = productResponse.data.name || 'Unknown Plan';
+                planName = productResponse.name || 'Unknown Plan';
               } catch (productError) {
                 console.error('Error fetching product details:', productError);
                 planName = 'Unknown Plan';
