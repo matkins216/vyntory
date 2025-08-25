@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
           };
 
           // Validate subscription data
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (!(subscriptionDetails as any).current_period_start || !(subscriptionDetails as any).current_period_end) {
             console.error('Missing required subscription period data');
             break;
@@ -158,7 +159,9 @@ export async function POST(request: NextRequest) {
             subscription_status: mapSubscriptionStatus(subscriptionDetails.status),
             subscription_id: subscriptionDetails.id,
             plan_name: planName,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             current_period_start: new Date((subscriptionDetails as any).current_period_start * 1000).toISOString(),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             current_period_end: new Date((subscriptionDetails as any).current_period_end * 1000).toISOString(),
             trial_end: subscriptionDetails.trial_end ? new Date(subscriptionDetails.trial_end * 1000).toISOString() : undefined,
             is_active: subscriptionDetails.status === 'active' || subscriptionDetails.status === 'trialing'
@@ -199,6 +202,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!(invoiceEvent as any).subscription) {
           console.error('No subscription in invoice webhook event');
           break;
@@ -225,6 +229,7 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (!(failedInvoiceEvent as any).subscription) {
           console.error('No subscription in failed invoice webhook event');
           break;
