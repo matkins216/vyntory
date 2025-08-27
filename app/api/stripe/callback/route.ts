@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
             email: connectedAccount.email,
             company_name: connectedAccount.business_profile?.name || 'Connected Account',
             subscription_status: 'inactive', // Default to inactive until verified
-            plan_name: 'Free Plan',
+            plan_name: 'Launch',
             plan_features: {
               max_products: 100,
               max_inventory_updates: 1000,
