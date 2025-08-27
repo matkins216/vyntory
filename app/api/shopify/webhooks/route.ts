@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ShopifyService } from '@/lib/services/shopify-service';
 import { createServerSupabaseClient } from '@/lib/supabase/client';
+import crypto from 'crypto';
 
 // const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET!;
+
+function verifyWebhook(body: string, hmac: string, secret: string): boolean {
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(body, 'utf8')
+    .digest('base64');
+  return hash === hmac;
+}
 
 export async function POST(request: NextRequest) {
   try {
