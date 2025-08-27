@@ -113,7 +113,7 @@ export default function Home() {
             </form>
             
             <p className="text-sm text-gray-500 mt-4">
-              Enter your shop name (e.g., 'mystore'for mystore.myshopify.com)
+              Enter your shop name
             </p>
           </div>
         </div>
