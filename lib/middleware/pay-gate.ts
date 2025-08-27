@@ -22,28 +22,29 @@ export async function checkPayGateAuthorization(
 
   try {
     const connectService = new ConnectCustomerService();
-    const customer = await connectService.getCustomerByStripeAccountId(stripeAccountId);
-
-    if (!customer) {
+    // Use the enhanced authorization method that checks Stripe for team member emails
+    const authResult = await connectService.checkPayGateAuthorization(stripeAccountId);
+    
+    if (!authResult.isAuthorized) {
       return {
         isAuthorized: false,
-        reason: 'No subscription found for this account'
+        reason: authResult.reason || 'Authorization failed'
       };
     }
 
-    // Check if subscription is active
-    if (requireActiveSubscription) {
+    // If we have a customer, check additional requirements
+    if (authResult.customer && requireActiveSubscription) {
       const validStatuses = ['active', 'trialing'];
-      if (!validStatuses.includes(customer.subscription_status)) {
+      if (!validStatuses.includes(authResult.customer.subscription_status)) {
         return {
           isAuthorized: false,
-          reason: `Subscription is ${customer.subscription_status}. Active subscription required.`
+          reason: `Subscription is ${authResult.customer.subscription_status}. Active subscription required.`
         };
       }
     }
 
     // Check trial access
-    if (!allowTrial && customer.subscription_status === 'trialing') {
+    if (authResult.customer && !allowTrial && authResult.customer.subscription_status === 'trialing') {
       return {
         isAuthorized: false,
         reason: 'Trial access not allowed for this feature'
@@ -52,7 +53,7 @@ export async function checkPayGateAuthorization(
 
     return {
       isAuthorized: true,
-      customer
+      customer: authResult.customer
     };
   } catch (error) {
     console.error('Error checking pay gate authorization:', error);
