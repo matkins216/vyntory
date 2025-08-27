@@ -28,8 +28,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing headers' }, { status: 400 });
     }
 
-    // Verify HMAC signature (you should implement proper HMAC verification)
-    // For now, we'll trust the webhook and process it
+    // Verify HMAC signature
+    if (!SHOPIFY_WEBHOOK_SECRET) {
+      console.error('❌ Webhook secret not configured');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    
+    const isValidSignature = verifyWebhook(body, hmacHeader, SHOPIFY_WEBHOOK_SECRET);
+    if (!isValidSignature) {
+      console.error('❌ Invalid webhook signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    
+    console.log('✅ Webhook signature verified successfully');
     
     console.log('🔔 Shopify webhook received:', {
       topic: topicHeader,
