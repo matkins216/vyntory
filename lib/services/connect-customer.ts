@@ -188,8 +188,10 @@ export class ConnectCustomerService {
                     subscriptions: subscriptions.data.map(sub => ({
                       id: sub.id,
                       status: sub.status,
-                      current_period_start: sub.current_period_start,
-                      current_period_end: sub.current_period_end
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      current_period_start: (sub as any).current_period_start,
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      current_period_end: (sub as any).current_period_end
                     }))
                   });
                   
