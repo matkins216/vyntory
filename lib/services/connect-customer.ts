@@ -96,7 +96,7 @@ export class ConnectCustomerService {
       if (connectedAccountEmail) {
         console.log('🔍 Looking for subscription with email:', connectedAccountEmail);
         
-        // Check if this email has an active subscription in our database
+        // First, check if this email has an active subscription in our database
         const { data: customers, error } = await this.supabase
           .from('connect_customers')
           .select('*')
@@ -165,7 +165,64 @@ export class ConnectCustomerService {
             };
           }
         } else {
-          console.log('❌ No active subscription found for email:', connectedAccountEmail);
+          console.log('❌ No active subscription found in database for email:', connectedAccountEmail);
+          
+          // NEW: Check if this email matches any active subscription in Stripe directly
+          console.log('🔍 Checking if email matches any active subscription in Stripe...');
+          try {
+            // Search for customers in Stripe with this email
+            const stripeCustomers = await stripe.customers.list({
+              email: connectedAccountEmail,
+              limit: 100
+            });
+            
+            if (stripeCustomers.data.length > 0) {
+              console.log(`✅ Found ${stripeCustomers.data.length} Stripe customer(s) with email:`, connectedAccountEmail);
+              
+              // Check each customer for active subscriptions
+              for (const stripeCustomer of stripeCustomers.data) {
+                if (stripeCustomer.deleted) continue;
+                
+                console.log('🔍 Checking customer:', stripeCustomer.id, 'for active subscriptions...');
+                const subscriptions = await stripe.subscriptions.list({
+                  customer: stripeCustomer.id,
+                  status: 'active',
+                  limit: 10
+                });
+                
+                if (subscriptions.data.length > 0) {
+                  console.log('✅ Found active subscription for customer:', stripeCustomer.id);
+                  
+                  // Create or update customer record in our database
+                  const customerData = {
+                    stripe_account_id: stripeAccountId,
+                    stripe_customer_id: stripeCustomer.id,
+                    email: connectedAccountEmail,
+                    company_name: stripeCustomer.name || 'Stripe Customer',
+                    subscription_status: 'active' as const,
+                    subscription_id: subscriptions.data[0].id,
+                    plan_name: 'Active Stripe Subscription',
+                    is_active: true
+                  };
+                  
+                  console.log('💾 Creating/updating customer record for team member...');
+                  const newCustomer = await this.createOrUpdateCustomer(customerData);
+                  
+                  return {
+                    isAuthorized: true,
+                    customer: newCustomer,
+                    reason: 'Authorized via team member email with active Stripe subscription'
+                  };
+                }
+              }
+              
+              console.log('❌ No active subscriptions found for any Stripe customers with this email');
+            } else {
+              console.log('❌ No Stripe customers found with email:', connectedAccountEmail);
+            }
+          } catch (stripeError) {
+            console.error('❌ Error checking Stripe for team member subscription:', stripeError);
+          }
         }
       }
 
