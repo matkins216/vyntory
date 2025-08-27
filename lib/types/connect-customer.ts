@@ -4,10 +4,17 @@ export interface ConnectCustomer {
   stripe_customer_id?: string;
   email?: string;
   company_name?: string;
-  subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | 'incomplete_expired' | 'unpaid';
+  subscription_status: 'active' | 'inactive' | 'past_due' | 'canceled' | 'trialing' | 'incomplete' | 'incomplete_expired' | 'unpaid' | 'paused';
   subscription_id?: string;
   plan_name: string;
-  plan_features?: PlanFeatures;
+  plan_features?: {
+    max_products: number;
+    max_inventory_updates: number;
+    webhook_endpoints: number;
+    api_calls_per_month: number;
+    support_level: 'basic' | 'premium' | 'enterprise';
+    platforms: ('stripe' | 'shopify')[];
+  };
   current_period_start?: string;
   current_period_end?: string;
   trial_end?: string;
