@@ -49,15 +49,15 @@ export async function POST(request: NextRequest) {
     try {
       switch (topicHeader) {
         case 'orders/create':
-          await handleOrderCreated(shopifyService, webhookData, shopifyCustomer.id);
+          await handleOrderCreated(shopifyService, webhookData);
           break;
           
         case 'orders/updated':
-          await handleOrderUpdated(shopifyService, webhookData, shopifyCustomer.id);
+          await handleOrderUpdated(shopifyService, webhookData);
           break;
           
         case 'orders/cancelled':
-          await handleOrderCancelled(shopifyService, webhookData, shopifyCustomer.id);
+          await handleOrderCancelled(shopifyService, webhookData);
           break;
           
         case 'inventory_levels/update':
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
 // Webhook handlers
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleOrderCreated(shopifyService: ShopifyService, data: any, _customerId: string) {
+async function handleOrderCreated(shopifyService: ShopifyService, data: any) {
   console.log('🛒 Processing order created webhook:', data.id);
   
   const order = data;
@@ -101,7 +101,8 @@ async function handleOrderCreated(shopifyService: ShopifyService, data: any, _cu
   for (const item of order.line_items) {
     try {
       // Get current inventory level
-      const { data: inventoryLevels, error } = await shopifyService.supabase
+      const supabase = createServerSupabaseClient();
+      const { data: inventoryLevels, error } = await supabase
         .from('shopify_inventory_levels')
         .select('*')
         .eq('shopify_variant_id', item.variant_id.toString())
@@ -127,14 +128,14 @@ async function handleOrderCreated(shopifyService: ShopifyService, data: any, _cu
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleOrderUpdated(shopifyService: ShopifyService, data: any, _customerId: string) {
+async function handleOrderUpdated(shopifyService: ShopifyService, data: any) {
   console.log('📝 Processing order updated webhook:', data.id);
   // Similar logic to order created, but handle quantity changes
-  await handleOrderCreated(shopifyService, data, customerId);
+  await handleOrderCreated(shopifyService, data);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleOrderCancelled(shopifyService: ShopifyService, data: any, customerId: string) {
+async function handleOrderCancelled(shopifyService: ShopifyService, data: any) {
   console.log('❌ Processing order cancelled webhook:', data.id);
   
   const order = data;
@@ -142,7 +143,8 @@ async function handleOrderCancelled(shopifyService: ShopifyService, data: any, c
   // Restore inventory for cancelled orders
   for (const item of order.line_items) {
     try {
-      const { data: inventoryLevels, error } = await shopifyService.supabase
+      const supabase = createServerSupabaseClient();
+      const { data: inventoryLevels, error } = await supabase
         .from('shopify_inventory_levels')
         .select('*')
         .eq('shopify_variant_id', item.variant_id.toString())

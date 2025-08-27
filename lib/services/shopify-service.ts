@@ -136,7 +136,6 @@ export class ShopifyService {
     const syncedVariants: ShopifyVariant[] = [];
     
     for (const variant of variants) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const variantData: Partial<ShopifyVariant> = {
         shopify_product_id: productId,
         shopify_variant_id: variant.id.toString(),

@@ -58,19 +58,20 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Authorization successful, fetching products...');
     
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let products: any[] = [];
     
     if (platform === 'shopify' && shopDomain) {
       // Fetch Shopify products
       console.log('🛍️ Fetching Shopify products...');
       const shopifyService = new ShopifyService(shopDomain, authResult.customer.shopify_access_token);
+      const supabase = createServerSupabaseClient();
       
       try {
         // Sync products first to ensure we have the latest data
         await shopifyService.syncProducts(authResult.customer.id);
         
         // Get products from database
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: shopifyProducts, error } = await supabase
           .from('shopify_products')
           .select(`

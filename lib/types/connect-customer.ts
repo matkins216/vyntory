@@ -23,6 +23,7 @@ export interface PlanFeatures {
   api_calls_per_month?: number;
   support_level?: 'basic' | 'priority' | 'enterprise';
   custom_features?: string[];
+  platforms?: ('stripe' | 'shopify')[];
 }
 
 export interface SubscriptionPlan {

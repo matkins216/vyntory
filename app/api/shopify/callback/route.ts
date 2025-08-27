@@ -82,17 +82,12 @@ export async function GET(request: NextRequest) {
       
       if (shopInfo.email) {
         try {
-          // Look for existing Stripe customer with this email
-          const { data: customers, error } = await connectService.supabase
-            .from('connect_customers')
-            .select('*')
-            .eq('email', shopInfo.email)
-            .eq('is_active', true)
-            .in('subscription_status', ['active', 'trialing'])
-            .limit(1);
-
-          if (!error && customers && customers.length > 0) {
-            stripeCustomer = customers[0];
+          // Look for existing Stripe customer with this email using the service method
+          const customers = await connectService.getActiveCustomers();
+          const matchingCustomer = customers.find((c) => c.email === shopInfo.email);
+          
+          if (matchingCustomer) {
+            stripeCustomer = matchingCustomer;
             console.log('✅ Found existing Stripe customer:', stripeCustomer.email);
           }
         } catch (error) {
@@ -110,13 +105,20 @@ export async function GET(request: NextRequest) {
         subscription_status: stripeCustomer ? stripeCustomer.subscription_status : 'inactive',
         subscription_id: stripeCustomer?.subscription_id,
         plan_name: stripeCustomer ? stripeCustomer.plan_name : 'Shopify Integration',
-        plan_features: stripeCustomer ? stripeCustomer.plan_features : {
+        plan_features: stripeCustomer ? {
+          max_products: stripeCustomer.plan_features?.max_products || 100,
+          max_inventory_updates: stripeCustomer.plan_features?.max_inventory_updates || 1000,
+          webhook_endpoints: stripeCustomer.plan_features?.webhook_endpoints || 5,
+          api_calls_per_month: stripeCustomer.plan_features?.api_calls_per_month || 10000,
+          support_level: (stripeCustomer.plan_features?.support_level as 'basic' | 'premium' | 'enterprise') || 'basic',
+          platforms: ['stripe', 'shopify'] as ('stripe' | 'shopify')[]
+        } : {
           max_products: 100,
           max_inventory_updates: 1000,
           webhook_endpoints: 5,
           api_calls_per_month: 10000,
-          support_level: 'basic',
-          platforms: ['shopify']
+          support_level: 'basic' as const,
+          platforms: ['shopify'] as ('stripe' | 'shopify')[]
         },
         is_active: true
       };
