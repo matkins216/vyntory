@@ -109,18 +109,61 @@ export class ConnectCustomerService {
           console.error('❌ Database error looking for customers:', error);
         } else if (customers && customers.length > 0) {
           const customer = customers[0];
-          console.log('✅ Found customer with active subscription:', {
+          console.log('✅ Found customer in database:', {
             id: customer.id,
             email: customer.email,
             subscription_status: customer.subscription_status,
-            plan_name: customer.plan_name
+            subscription_id: customer.subscription_id
           });
           
-          return {
-            isAuthorized: true,
-            customer: customer,
-            reason: 'Authorized via email subscription match'
-          };
+          // CRITICAL: Verify the subscription actually exists and is active in Stripe
+          if (customer.subscription_id) {
+            console.log('🔍 Verifying subscription with Stripe...');
+            try {
+              const subscription = await stripe.subscriptions.retrieve(customer.subscription_id);
+              console.log('✅ Stripe subscription details:', {
+                id: subscription.id,
+                status: subscription.status,
+                customer: subscription.customer
+              });
+              
+              if (subscription.status === 'active' || subscription.status === 'trialing') {
+                console.log('✅ Stripe confirms subscription is active/trialing');
+                return {
+                  isAuthorized: true,
+                  customer: customer,
+                  reason: 'Authorized via verified Stripe subscription'
+                };
+              } else {
+                console.log('❌ Stripe shows subscription status as:', subscription.status);
+                // Update the database to reflect the actual status
+                await this.updateSubscriptionStatus(customer.stripe_account_id, {
+                  subscription_status: subscription.status as ConnectCustomer['subscription_status']
+                });
+                
+                return {
+                  isAuthorized: false,
+                  customer: customer,
+                  reason: `Subscription status: ${subscription.status}`
+                };
+              }
+            } catch (stripeError) {
+              console.error('❌ Error verifying subscription with Stripe:', stripeError);
+              // If we can't verify with Stripe, deny access for security
+              return {
+                isAuthorized: false,
+                customer: customer,
+                reason: 'Unable to verify subscription with Stripe - access denied'
+              };
+            }
+          } else {
+            console.log('❌ No subscription ID in customer record');
+            return {
+              isAuthorized: false,
+              customer: customer,
+              reason: 'No subscription ID found'
+            };
+          }
         } else {
           console.log('❌ No active subscription found for email:', connectedAccountEmail);
         }
