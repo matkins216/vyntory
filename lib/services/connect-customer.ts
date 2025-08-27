@@ -158,10 +158,61 @@ export class ConnectCustomerService {
             }
           } else {
             console.log('❌ No subscription ID in customer record');
+            console.log('🔍 Customer has active status but no subscription ID, checking Stripe directly...');
+            
+            // Try to find active subscriptions in Stripe for this email
+            try {
+              const stripeCustomers = await stripe.customers.list({
+                email: customer.email,
+                limit: 100
+              });
+              
+              if (stripeCustomers.data.length > 0) {
+                console.log(`✅ Found ${stripeCustomers.data.length} Stripe customer(s) with email:`, customer.email);
+                
+                // Check each customer for active subscriptions
+                for (const stripeCustomer of stripeCustomers.data) {
+                  if (stripeCustomer.deleted) continue;
+                  
+                  console.log('🔍 Checking customer:', stripeCustomer.id, 'for active subscriptions...');
+                  const subscriptions = await stripe.subscriptions.list({
+                    customer: stripeCustomer.id,
+                    status: 'active',
+                    limit: 10
+                  });
+                  
+                  if (subscriptions.data.length > 0) {
+                    console.log('✅ Found active subscription for customer:', stripeCustomer.id);
+                    
+                    // Update the existing customer record with the subscription ID
+                    await this.updateSubscriptionStatus(customer.stripe_account_id, {
+                      subscription_status: 'active',
+                      subscription_id: subscriptions.data[0].id
+                    });
+                    
+                    console.log('💾 Updated customer record with subscription ID:', subscriptions.data[0].id);
+                    
+                    return {
+                      isAuthorized: true,
+                      customer: {
+                        ...customer,
+                        subscription_id: subscriptions.data[0].id
+                      },
+                      reason: 'Authorized via verified Stripe subscription (updated existing record)'
+                    };
+                  }
+                }
+                
+                console.log('❌ No active subscriptions found for any Stripe customers with this email');
+              }
+            } catch (stripeError) {
+              console.error('❌ Error checking Stripe for subscription:', stripeError);
+            }
+            
             return {
               isAuthorized: false,
               customer: customer,
-              reason: 'No subscription ID found'
+              reason: 'No subscription ID found and no active subscriptions in Stripe'
             };
           }
         } else {
