@@ -67,8 +67,42 @@ export class ConnectCustomerService {
 
   async checkPayGateAuthorization(stripeAccountId: string): Promise<PayGateCheckResult> {
     try {
-      // Get customer from database
+      // First, check if this is a connected account and get its owner
+      let mainAccountCustomer: ConnectCustomer | null = null;
+      
+      try {
+        // Get the connected account details to find the owner
+        const connectedAccount = await stripe.accounts.retrieve(stripeAccountId);
+        
+        if (connectedAccount.email) {
+          // Check if the owner has a subscription in our main account
+          const { data: ownerCustomers } = await this.supabase
+            .from('connect_customers')
+            .select('*')
+            .eq('email', connectedAccount.email)
+            .eq('is_active', true)
+            .in('subscription_status', ['active', 'trialing'])
+            .limit(1);
+          
+          if (ownerCustomers && ownerCustomers.length > 0) {
+            mainAccountCustomer = ownerCustomers[0];
+          }
+        }
+      } catch (stripeError) {
+        console.log('Not a connected account or error retrieving:', stripeError);
+      }
+
+      // Get customer from database for this specific account
       const customer = await this.getCustomerByStripeAccountId(stripeAccountId);
+      
+      // If we have a main account customer with active subscription, authorize access
+      if (mainAccountCustomer && (mainAccountCustomer.subscription_status === 'active' || mainAccountCustomer.subscription_status === 'trialing')) {
+        return {
+          isAuthorized: true,
+          customer: mainAccountCustomer,
+          reason: 'Authorized via main account subscription'
+        };
+      }
       
       if (!customer) {
         return {
