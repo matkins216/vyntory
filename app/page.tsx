@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Package, Shield, Zap, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import Script from 'next/script';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -191,6 +192,30 @@ function HomeContent() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h3>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Choose the plan that fits your business needs. All plans include our core inventory management features.
+            </p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <div 
+              id="stripe-pricing-table"
+              dangerouslySetInnerHTML={{
+                __html: `<stripe-pricing-table 
+                  pricing-table-id="prctbl_1S0n66BqHlHh50zYnSKUdUmQ"
+                  publishable-key="pk_live_51OE47TBqHlHh50zYanbqxXkLgAshhxY2n4mkYZ71EKhrq4EylXanvBv1f7sCNHpR655EHQG79qGISXRq367UbYJ40084gcgeCk">
+                </stripe-pricing-table>`
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 text-center">
@@ -218,8 +243,14 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <HomeContent />
-    </Suspense>
+    <>
+      <Script 
+        src="https://js.stripe.com/v3/pricing-table.js" 
+        strategy="beforeInteractive"
+      />
+      <Suspense fallback={<div>Loading...</div>}>
+        <HomeContent />
+      </Suspense>
+    </>
   );
 }
