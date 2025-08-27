@@ -175,30 +175,49 @@ export class ConnectCustomerService {
                   if (stripeCustomer.deleted) continue;
                   
                   console.log('🔍 Checking customer:', stripeCustomer.id, 'for active subscriptions...');
+                  
+                  // Search for subscriptions with valid statuses (not just 'active')
                   const subscriptions = await stripe.subscriptions.list({
                     customer: stripeCustomer.id,
-                    status: 'active',
+                    status: 'all', // Changed from 'active' to 'all' to see all statuses
                     limit: 10
                   });
                   
-                  if (subscriptions.data.length > 0) {
-                    console.log('✅ Found active subscription for customer:', stripeCustomer.id);
+                  console.log('🔍 All subscriptions found for customer:', {
+                    customerId: stripeCustomer.id,
+                    subscriptions: subscriptions.data.map(sub => ({
+                      id: sub.id,
+                      status: sub.status,
+                      current_period_start: sub.current_period_start,
+                      current_period_end: sub.current_period_end
+                    }))
+                  });
+                  
+                  // Check for valid subscription statuses
+                  const validSubscriptions = subscriptions.data.filter(sub => 
+                    ['active', 'trialing', 'past_due'].includes(sub.status)
+                  );
+                  
+                  if (validSubscriptions.length > 0) {
+                    const subscription = validSubscriptions[0];
+                    console.log('✅ Found valid subscription for customer:', stripeCustomer.id, 'with status:', subscription.status);
                     
-                    // Update the existing customer record with the subscription ID
+                    // Update the existing customer record with the subscription ID and correct status
                     await this.updateSubscriptionStatus(customer.stripe_account_id, {
-                      subscription_status: 'active',
-                      subscription_id: subscriptions.data[0].id
+                      subscription_status: subscription.status,
+                      subscription_id: subscription.id
                     });
                     
-                    console.log('💾 Updated customer record with subscription ID:', subscriptions.data[0].id);
+                    console.log('💾 Updated customer record with subscription ID:', subscription.id, 'and status:', subscription.status);
                     
                     return {
                       isAuthorized: true,
                       customer: {
                         ...customer,
-                        subscription_id: subscriptions.data[0].id
+                        subscription_id: subscription.id,
+                        subscription_status: subscription.status
                       },
-                      reason: 'Authorized via verified Stripe subscription (updated existing record)'
+                      reason: `Authorized via verified Stripe subscription (${subscription.status})`
                     };
                   }
                 }
