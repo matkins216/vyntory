@@ -77,14 +77,24 @@ function HomeContent() {
                 <p className="text-sm text-gray-600">Stripe Inventory Management</p>
               </div>
             </div>
-            <Button
-              onClick={handleConnectStripe}
-              disabled={isConnecting}
-              size="lg"
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            >
-              {isConnecting ? 'Connecting...' : 'Connect Stripe Account'}
-            </Button>
+            <div className="flex space-x-4">
+              <Button
+                onClick={handleConnectStripe}
+                disabled={isConnecting}
+                size="lg"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isConnecting ? 'Connecting...' : 'Connect Stripe Account'}
+              </Button>
+              <Button
+                onClick={() => window.location.href = '/api/shopify/auth?shop=your-store.myshopify.com'}
+                size="lg"
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+              >
+                Connect Shopify Store
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -93,14 +103,14 @@ function HomeContent() {
       <section className="py-20">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
-            Manage Your Stripe Products
+            Manage Your Products
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-              Like Never Before
+              Across All Platforms
             </span>
           </h2>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Connect your Stripe account and get instant access to a powerful inventory management system. 
+            Connect your Stripe and Shopify accounts for unified inventory management. 
             Track stock levels, manage product availability, and maintain comprehensive audit logs—all in one place.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
