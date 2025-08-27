@@ -21,8 +21,8 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('🔐 Starting pay gate authorization check...');
-    // Check pay gate authorization
-    const authResult = await checkPayGateAuthorization(accountId);
+    // Check pay gate authorization - explicitly allow trial users
+    const authResult = await checkPayGateAuthorization(accountId, true, true);
     console.log('🔐 Pay gate authorization result:', {
       isAuthorized: authResult.isAuthorized,
       reason: authResult.reason,
