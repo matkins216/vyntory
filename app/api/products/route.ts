@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, getInventoryFromMetadata } from '@/lib/stripe';
+import { checkPayGateAuthorization } from '@/lib/middleware/pay-gate';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,6 +9,15 @@ export async function GET(request: NextRequest) {
     
     if (!accountId) {
       return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    // Check pay gate authorization
+    const authResult = await checkPayGateAuthorization(accountId);
+    if (!authResult.isAuthorized) {
+      return NextResponse.json(
+        { error: 'Subscription required', reason: authResult.reason },
+        { status: 403 }
+      );
     }
 
     // Fetch products from the connected account

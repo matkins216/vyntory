@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
+import { checkPayGateAuthorization } from '@/lib/middleware/pay-gate';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +11,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Missing required fields: productId, accountId, quantity' 
       }, { status: 400 });
+    }
+
+    // Check pay gate authorization
+    const authResult = await checkPayGateAuthorization(accountId);
+    if (!authResult.isAuthorized) {
+      return NextResponse.json(
+        { error: 'Subscription required', reason: authResult.reason },
+        { status: 403 }
+      );
     }
     
     console.log('Testing inventory update:', { productId, accountId, quantity });
