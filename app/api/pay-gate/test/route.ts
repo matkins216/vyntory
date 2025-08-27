@@ -17,11 +17,6 @@ export async function POST(request: NextRequest) {
     
     const connectService = new ConnectCustomerService();
     
-    // Create or get main account customer
-    console.log('🔧 Creating/getting main account customer...');
-    const mainCustomer = await connectService.getOrCreateMainAccountCustomer(email);
-    console.log('✅ Main account customer:', mainCustomer);
-    
     // Test authorization with a test account ID
     if (testAccountId) {
       console.log('🔍 Testing authorization with account ID:', testAccountId);
@@ -29,15 +24,13 @@ export async function POST(request: NextRequest) {
       console.log('🔐 Authorization result:', authResult);
       
       return NextResponse.json({
-        mainCustomer,
         testAuthorization: authResult,
         message: 'Test completed successfully'
       });
     }
     
     return NextResponse.json({
-      mainCustomer,
-      message: 'Main account customer created/retrieved successfully'
+      message: 'Test endpoint ready - provide testAccountId to test authorization'
     });
     
   } catch (error) {

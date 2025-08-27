@@ -64,30 +64,22 @@ export async function GET(request: NextRequest) {
         const connectService = new ConnectCustomerService();
         
         try {
-          console.log('🔧 Creating/getting customer record for connected account...');
-          const customer = await connectService.getOrCreateMainAccountCustomer(connectedAccount.email);
-          
-          console.log('✅ Customer record created/retrieved:', {
-            id: customer.id,
-            email: customer.email,
-            subscription_status: customer.subscription_status
-          });
-          
-          // Now create a record specifically for this connected account
           console.log('🔧 Creating connected account customer record...');
           const connectedAccountCustomer = await connectService.createOrUpdateCustomer({
             stripe_account_id: connectedAccountId,
-            stripe_customer_id: connectedAccountId,
+            stripe_customer_id: undefined, // Will be set when they have a proper customer ID
             email: connectedAccount.email,
             company_name: connectedAccount.business_profile?.name || 'Connected Account',
-            subscription_status: customer.subscription_status,
-            subscription_id: customer.subscription_id,
-            plan_name: customer.plan_name,
-            plan_features: customer.plan_features,
-            current_period_start: customer.current_period_start,
-            current_period_end: customer.current_period_end,
-            trial_end: customer.trial_end,
-            is_active: customer.is_active
+            subscription_status: 'inactive', // Default to inactive until verified
+            plan_name: 'Free Plan',
+            plan_features: {
+              max_products: 100,
+              max_inventory_updates: 1000,
+              webhook_endpoints: 5,
+              api_calls_per_month: 10000,
+              support_level: 'basic'
+            },
+            is_active: false // Default to inactive until subscription is verified
           });
           
           console.log('✅ Connected account customer record created:', {
