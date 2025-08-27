@@ -126,7 +126,56 @@ export class ConnectCustomerService {
         }
       }
 
-      // Fallback: Check if the stripeAccountId itself has a customer record
+      // NEW: Check if this stripeAccountId is actually a customer in your main Stripe account
+      console.log('🔍 Checking if this is a customer in main Stripe account...');
+      try {
+        const mainAccountCustomer = await stripe.customers.retrieve(stripeAccountId);
+        
+        if (mainAccountCustomer && !mainAccountCustomer.deleted) {
+          console.log('✅ Found customer in main Stripe account:', {
+            id: mainAccountCustomer.id,
+            email: mainAccountCustomer.email,
+            name: mainAccountCustomer.name
+          });
+          
+          // Check if this customer has any active subscriptions
+          const subscriptions = await stripe.subscriptions.list({
+            customer: stripeAccountId,
+            status: 'active'
+          });
+          
+          if (subscriptions.data.length > 0) {
+            console.log('✅ Customer has active subscriptions in main account');
+            
+            // Create or update customer record in our database
+            const customerData = {
+              stripe_account_id: stripeAccountId,
+              stripe_customer_id: stripeAccountId,
+              email: mainAccountCustomer.email || undefined,
+              company_name: mainAccountCustomer.name || undefined,
+              subscription_status: 'active' as const,
+              subscription_id: subscriptions.data[0].id,
+              plan_name: 'Main Account Subscription',
+              is_active: true
+            };
+            
+            console.log('💾 Saving main account customer to database...');
+            await this.createOrUpdateCustomer(customerData);
+            
+            return {
+              isAuthorized: true,
+              customer: customerData as ConnectCustomer,
+              reason: 'Authorized via main Stripe account subscription'
+            };
+          } else {
+            console.log('❌ Customer has no active subscriptions in main account');
+          }
+        }
+      } catch (stripeError) {
+        console.log('⚠️ Not a customer in main account or error retrieving:', stripeError);
+      }
+
+      // Fallback: Check if the stripeAccountId itself has a customer record in our database
       console.log('🔍 Checking database for account-specific customer...');
       const customer = await this.getCustomerByStripeAccountId(stripeAccountId);
       

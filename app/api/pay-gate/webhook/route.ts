@@ -5,6 +5,15 @@ import { ConnectCustomerService } from '@/lib/services/connect-customer';
 import type Stripe from 'stripe';
 import { ConnectCustomer } from '@/lib/types/connect-customer';
 
+export async function GET() {
+  return NextResponse.json({
+    message: 'Pay gate webhook endpoint is working',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    webhookSecret: process.env.STRIPE_PAY_GATE_WEBHOOK_SECRET ? 'Configured' : 'Missing'
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('=== PAY GATE WEBHOOK RECEIVED ===');
