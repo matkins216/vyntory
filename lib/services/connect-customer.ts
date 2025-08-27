@@ -169,100 +169,58 @@ export class ConnectCustomerService {
         }
       }
 
-      // NEW: Check if this stripeAccountId is actually a customer in your main Stripe account
-      console.log('🔍 Checking if this is a customer in main Stripe account...');
-      try {
-        const mainAccountCustomer = await stripe.customers.retrieve(stripeAccountId);
-        
-        if (mainAccountCustomer && !mainAccountCustomer.deleted) {
-          console.log('✅ Found customer in main Stripe account:', {
-            id: mainAccountCustomer.id,
-            email: mainAccountCustomer.email,
-            name: mainAccountCustomer.name
-          });
-          
-          // Check if this customer has any active subscriptions
-          const subscriptions = await stripe.subscriptions.list({
-            customer: stripeAccountId,
-            status: 'active'
-          });
-          
-          if (subscriptions.data.length > 0) {
-            console.log('✅ Customer has active subscriptions in main account');
-            
-            // Create or update customer record in our database
-            const customerData = {
-              stripe_account_id: stripeAccountId,
-              stripe_customer_id: mainAccountCustomer.id, // Using the actual customer ID (cus_xxx)
-              email: mainAccountCustomer.email || undefined,
-              company_name: mainAccountCustomer.name || undefined,
-              subscription_status: 'active' as const,
-              subscription_id: subscriptions.data[0].id,
-              plan_name: 'Main Account Subscription',
-              is_active: true
-            };
-            
-            console.log('💾 Saving main account customer to database...');
-            await this.createOrUpdateCustomer(customerData);
-            
-            return {
-              isAuthorized: true,
-              customer: customerData as ConnectCustomer,
-              reason: 'Authorized via main Stripe account subscription'
-            };
-          } else {
-            console.log('❌ Customer has no active subscriptions in main account');
-          }
-        }
-      } catch (stripeError) {
-        console.log('⚠️ Not a customer in main account or error retrieving:', stripeError);
-      }
-
-      // Fallback: Check if the stripeAccountId itself has a customer record in our database
-      console.log('🔍 Checking database for account-specific customer...');
+      // Check if this account has a valid Stripe customer ID and subscription
       const customer = await this.getCustomerByStripeAccountId(stripeAccountId);
       
-      if (!customer) {
-        console.log('❌ No customer found in database for account:', stripeAccountId);
+      if (!customer || !customer.stripe_customer_id?.startsWith('cus_')) {
+        console.log('❌ No valid Stripe customer ID found for account:', stripeAccountId);
         return {
           isAuthorized: false,
-          reason: 'No subscription found for this account'
+          reason: 'No valid Stripe customer ID found'
         };
       }
 
-      console.log('✅ Found customer in database:', {
-        id: customer.id,
-        email: customer.email,
-        subscription_status: customer.subscription_status,
-        is_active: customer.is_active
-      });
-
-      // Check if customer is active
-      if (!customer.is_active) {
-        console.log('❌ Customer account is not active');
-        return {
-          isAuthorized: false,
-          customer,
-          reason: 'Customer account is not active'
-        };
+      // Verify the subscription exists and is active in Stripe
+      if (customer.subscription_id) {
+        try {
+          const subscription = await stripe.subscriptions.retrieve(customer.subscription_id);
+          
+          if (subscription.status === 'active' || subscription.status === 'trialing') {
+            console.log('✅ Verified active subscription in Stripe:', subscription.id);
+            return {
+              isAuthorized: true,
+              customer,
+              reason: 'Active subscription verified in Stripe'
+            };
+          } else {
+            // Update status to reflect actual Stripe status
+            await this.updateSubscriptionStatus(customer.stripe_account_id, {
+              subscription_status: subscription.status as ConnectCustomer['subscription_status']
+            });
+            
+            return {
+              isAuthorized: false,
+              customer,
+              reason: `Subscription status: ${subscription.status}`
+            };
+          }
+        } catch (error) {
+          console.error('❌ Error verifying subscription:', error);
+          return {
+            isAuthorized: false,
+            customer,
+            reason: 'Unable to verify subscription'
+          };
+        }
       }
 
-      // Check subscription status
-      if (customer.subscription_status === 'active' || customer.subscription_status === 'trialing') {
-        console.log('✅ Customer has active/trialing subscription status');
-        return {
-          isAuthorized: true,
-          customer,
-          reason: 'Customer has active subscription'
-        };
-      } else {
-        console.log('❌ Customer subscription status is:', customer.subscription_status);
-        return {
-          isAuthorized: false,
-          customer,
-          reason: `Subscription status: ${customer.subscription_status}`
-        };
-      }
+      // No subscription ID found
+      console.log('❌ No subscription ID found for customer');
+      return {
+        isAuthorized: false,
+        customer,
+        reason: 'No subscription ID found'
+      };
     } catch (error) {
       console.error('❌ Error checking pay gate authorization:', error);
       return {
@@ -303,57 +261,4 @@ export class ConnectCustomerService {
     }
   }
 
-  async createMainAccountCustomer(email: string, planName: string = 'Free Plan'): Promise<ConnectCustomer> {
-    console.log('🔧 Creating main account customer for email:', email);
-    
-    const customerData = {
-      stripe_account_id: `main_${email.replace('@', '_').replace('.', '_')}`, // Generate a unique ID
-      email: email,
-      company_name: 'Main Account',
-      subscription_status: 'active' as const,
-      plan_name: planName,
-      plan_features: {
-        max_products: 100,
-        max_inventory_updates: 1000,
-        webhook_endpoints: 5,
-        api_calls_per_month: 10000,
-        support_level: 'basic' as const
-      },
-      is_active: true
-    };
-
-    console.log('📝 Customer data prepared:', customerData);
-    
-    try {
-      const customer = await this.createOrUpdateCustomer(customerData);
-      console.log('✅ Main account customer created/updated:', customer);
-      return customer;
-    } catch (error) {
-      console.error('❌ Error creating main account customer:', error);
-      throw error;
-    }
-  }
-
-  async getOrCreateMainAccountCustomer(email: string): Promise<ConnectCustomer> {
-    console.log('🔍 Looking for existing main account customer with email:', email);
-    
-    // First try to find by email
-    const { data: existingCustomers, error } = await this.supabase
-      .from('connect_customers')
-      .select('*')
-      .eq('email', email)
-      .eq('is_active', true)
-      .limit(1);
-    
-    if (error) {
-      console.error('❌ Database error looking for existing customer:', error);
-    } else if (existingCustomers && existingCustomers.length > 0) {
-      console.log('✅ Found existing main account customer:', existingCustomers[0]);
-      return existingCustomers[0];
-    }
-    
-    // If not found, create one
-    console.log('🔧 Creating new main account customer...');
-    return await this.createMainAccountCustomer(email);
-  }
 }
