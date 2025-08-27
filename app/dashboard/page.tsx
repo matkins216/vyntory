@@ -39,23 +39,49 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const accountId = searchParams.get('account');
   
+  console.log('=== DASHBOARD COMPONENT RENDERED ===');
+  console.log('🔍 Search params:', Object.fromEntries(searchParams.entries()));
+  console.log('🔍 Account ID extracted:', accountId);
+  console.log('🔍 Current URL:', window.location.href);
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
 
   const fetchProducts = useCallback(async () => {
+    console.log('🔄 fetchProducts called with accountId:', accountId);
+    
+    if (!accountId) {
+      console.log('❌ No accountId, skipping fetch');
+      return;
+    }
+    
+    const apiUrl = `/api/products?account=${accountId}`;
+    console.log('🌐 Making API call to:', apiUrl);
+    
     try {
-      const response = await fetch(`/api/products?account=${accountId}`);
+      console.log('📡 Sending request to products API...');
+      const response = await fetch(apiUrl);
+      console.log('📡 Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
       const data = await response.json();
+      console.log('📡 Response data:', data);
       
       if (data.error) {
+        console.error('❌ API returned error:', data.error);
         toast.error('Failed to fetch products');
         return;
       }
       
-      setProducts(data.products);
-    } catch {
+      console.log(`✅ Successfully fetched ${data.products?.length || 0} products`);
+      setProducts(data.products || []);
+    } catch (error) {
+      console.error('❌ Error in fetchProducts:', error);
       toast.error('Failed to fetch products');
     } finally {
       setLoading(false);
@@ -63,8 +89,13 @@ function DashboardContent() {
   }, [accountId]);
 
   useEffect(() => {
+    console.log('🔧 useEffect triggered, accountId:', accountId);
     if (accountId) {
+      console.log('✅ AccountId exists, calling fetchProducts');
       fetchProducts();
+    } else {
+      console.log('❌ No accountId, setting loading to false');
+      setLoading(false);
     }
   }, [accountId, fetchProducts]);
 
@@ -125,37 +156,62 @@ function DashboardContent() {
   const stats = getStats();
 
   if (!accountId) {
+    console.log('❌ No accountId provided, showing no-account message');
     return (
       <div className="container mx-auto px-4 py-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              No Stripe account connected. Please connect your Stripe account first.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Dashboard</h1>
+          <p className="text-gray-600 mb-4">
+            No Stripe account ID provided. Please connect with Stripe first.
+          </p>
+          <Button onClick={() => window.location.href = '/api/stripe/auth'}>
+            Connect with Stripe
+          </Button>
         </div>
       </div>
     );
   }
 
+  if (loading) {
+    console.log('⏳ Dashboard is loading...');
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
+    console.log('📭 No products found, showing empty state');
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Dashboard</h1>
+          <p className="text-gray-600 mb-4">
+            No products found for account: {accountId}
+          </p>
+          <p className="text-sm text-gray-500">
+            This could mean: no products exist, authorization failed, or account not found.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('🎯 Rendering main dashboard content with products:', products.length);
+  
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Product Dashboard</h1>
-        <p className="text-muted-foreground">
-          Manage your Stripe products and inventory
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-600">
+            Account: <span className="font-mono bg-gray-100 px-2 py-1 rounded">{accountId}</span>
+          </div>
+        </div>
       </div>
 
       {/* Stats Cards */}
