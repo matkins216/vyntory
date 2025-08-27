@@ -193,7 +193,7 @@ export class ConnectCustomerService {
             // Create or update customer record in our database
             const customerData = {
               stripe_account_id: stripeAccountId,
-              stripe_customer_id: stripeAccountId,
+              stripe_customer_id: mainAccountCustomer.id, // Using the actual customer ID (cus_xxx)
               email: mainAccountCustomer.email || undefined,
               company_name: mainAccountCustomer.name || undefined,
               subscription_status: 'active' as const,
