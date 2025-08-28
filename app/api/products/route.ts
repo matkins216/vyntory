@@ -1,16 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, getInventoryFromMetadata } from '@/lib/stripe';
 import { checkPayGateAuthorization } from '@/lib/middleware/pay-gate';
+import { planEnforcement } from '@/lib/services/plan-enforcement';
+import { logger } from '@/lib/utils/logger';
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const accountId = searchParams.get('account');
+    
+    if (!accountId) {
+      logger.api('warn', 'GET:/api/products', 'No account ID provided');
+      return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    // Check API call limit
+    const apiLimitCheck = await planEnforcement.checkApiCallLimit(accountId, 'GET:/api/products');
+    if (!apiLimitCheck.allowed) {
+      logger.api('warn', 'GET:/api/products', 'API call limit exceeded', { accountId });
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', reason: apiLimitCheck.reason },
+        { status: 429 }
+      );
+    }
+
     console.log('=== PRODUCTS API CALLED ===');
     console.log('Request URL:', request.url);
     console.log('Request method:', request.method);
     console.log('Request headers:', Object.fromEntries(request.headers.entries()));
-    
-    const { searchParams } = new URL(request.url);
-    const accountId = searchParams.get('account');
     
     console.log('🔍 Extracted account ID from query params:', accountId);
     console.log('All query params:', Object.fromEntries(searchParams.entries()));
@@ -19,6 +36,15 @@ export async function GET(request: NextRequest) {
       console.log('❌ No account ID provided, returning 400 error');
       return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
     }
+
+    // Check rate limit before processing
+    // const rateLimitCheck = await checkRateLimit(request, accountId, 'GET:/api/products');
+    // if (!rateLimitCheck.allowed) {
+    //   return NextResponse.json(
+    //     { error: 'Rate limit exceeded', reason: rateLimitCheck.reason },
+    //     { status: 429 }
+    //   );
+    // }
 
     console.log('🔐 Starting pay gate authorization check...');
     // Check pay gate authorization - explicitly allow trial users
@@ -92,9 +118,51 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ products: productsWithPrices });
   } catch (error) {
-    console.error('❌ Error in products API:', error);
+    logger.api('error', 'GET:/api/products', 'Unexpected error', { 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
     return NextResponse.json(
       { error: 'Failed to fetch products' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const accountId = searchParams.get('account');
+  
+  try {
+    if (!accountId) {
+      return NextResponse.json({ error: 'Account ID required' }, { status: 400 });
+    }
+
+    // Check pay gate authorization
+    const authResult = await checkPayGateAuthorization(accountId);
+    if (!authResult.isAuthorized) {
+      return NextResponse.json(
+        { error: 'Subscription required', reason: authResult.reason },
+        { status: 403 }
+      );
+    }
+
+    // Check product limit before creating
+    const productLimitCheck = await planEnforcement.checkProductLimit(accountId);
+    if (!productLimitCheck.allowed) {
+      logger.api('warn', 'POST:/api/products', 'Product limit exceeded', { accountId });
+      return NextResponse.json(
+        { error: 'Product limit exceeded', reason: productLimitCheck.reason },
+        { status: 403 }
+      );
+    }
+    
+    // ... create product logic ...
+  } catch (error) {
+    logger.api('error', 'POST:/api/products', 'Unexpected error', { 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+    return NextResponse.json(
+      { error: 'Failed to create product' },
       { status: 500 }
     );
   }
