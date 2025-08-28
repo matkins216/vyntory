@@ -144,6 +144,49 @@ function DashboardContent() {
     }
   };
 
+  const handleThresholdUpdate = async (productId: string, newThreshold: number) => {
+    console.log('Dashboard: handleThresholdUpdate called with:', {
+      productId,
+      newThreshold,
+      accountId
+    });
+
+    try {
+      const requestBody = {
+        threshold: newThreshold,
+        userId: 'user_' + Date.now(), // In a real app, this would be the actual user ID
+        accountId,
+      };
+
+      console.log('Dashboard: Sending request to:', `/api/products/${productId}/threshold`);
+      console.log('Dashboard: Request body:', requestBody);
+
+      const response = await fetch(`/api/products/${productId}/threshold`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Dashboard: Response status:', response.status);
+
+      const data = await response.json();
+      console.log('Dashboard: Response data:', data);
+
+      if (data.success) {
+        toast.success('Threshold updated successfully');
+        fetchProducts(); // Refresh products
+        setInventoryModalOpen(false);
+      } else {
+        toast.error('Failed to update threshold');
+      }
+    } catch (error) {
+      console.error('Dashboard: Error in handleThresholdUpdate:', error);
+      toast.error('Failed to update threshold');
+    }
+  };
+
   const getStats = () => {
     const totalProducts = products.length;
     const activeProducts = products.filter(p => p.active).length;
@@ -282,6 +325,7 @@ function DashboardContent() {
                   setSelectedProduct(product);
                   setInventoryModalOpen(true);
                 }}
+                onThresholdUpdate={handleThresholdUpdate}
                 stripeAccountId={accountId}
               />
             ))}

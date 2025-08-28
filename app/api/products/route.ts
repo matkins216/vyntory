@@ -3,6 +3,7 @@ import { stripe, getInventoryFromMetadata } from '@/lib/stripe';
 import { checkPayGateAuthorization } from '@/lib/middleware/pay-gate';
 import { planEnforcement } from '@/lib/services/plan-enforcement';
 import { logger } from '@/lib/utils/logger';
+import { createServerSupabaseClient } from '@/lib/supabase/client';
 
 export async function GET(request: NextRequest) {
   try {

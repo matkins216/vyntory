@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Package, DollarSign, Calendar, User, History } from 'lucide-react';
+import { Package, DollarSign, Calendar, User, History, Settings, AlertTriangle } from 'lucide-react';
 import { AuditLogDisplay } from './AuditLogDisplay';
+import { ThresholdModal } from './ThresholdModal';
 
 interface Product {
   id: string;
@@ -19,6 +20,7 @@ interface Product {
     lastUpdated: string;
     lastUpdatedBy: string;
   };
+  threshold?: number;
   prices: Array<{
     id: string;
     currency: string;
@@ -34,11 +36,13 @@ interface Product {
 interface ProductCardProps {
   product: Product;
   onInventoryUpdate: (product: Product) => void;
+  onThresholdUpdate: (productId: string, threshold: number) => Promise<void>;
   stripeAccountId?: string;
 }
 
-export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: ProductCardProps) {
+export function ProductCard({ product, onInventoryUpdate, onThresholdUpdate, stripeAccountId }: ProductCardProps) {
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showThresholdModal, setShowThresholdModal] = useState(false);
 
   const formatPrice = (amount: number, currency: string) => {
     return new Intl.NumberFormat('en-US', {
@@ -47,13 +51,14 @@ export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: Pro
     }).format(amount / 100);
   };
 
-  const getInventoryStatus = (quantity: number) => {
-    if (quantity <= 0) return { variant: 'destructive' as const, text: 'Out of Stock' };
-    if (quantity <= 10) return { variant: 'secondary' as const, text: 'Low Stock' };
-    return { variant: 'default' as const, text: 'In Stock' };
+  const getInventoryStatus = (quantity: number, threshold: number = 10) => {
+    if (quantity <= 0) return { variant: 'destructive' as const, text: 'Out of Stock', icon: AlertTriangle };
+    if (quantity <= threshold) return { variant: 'destructive' as const, text: 'Low Stock', icon: AlertTriangle };
+    return { variant: 'default' as const, text: 'In Stock', icon: Package };
   };
 
-  const inventoryStatus = getInventoryStatus(product.inventory.inventory);
+  const inventoryStatus = getInventoryStatus(product.inventory.inventory, product.threshold);
+  const isLowStock = product.inventory.inventory <= (product.threshold || 10);
 
   return (
     <Card className="h-full flex flex-col">
@@ -67,9 +72,17 @@ export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: Pro
               </p>
             )}
           </div>
-          <Badge variant={product.active ? 'default' : 'secondary'}>
-            {product.active ? 'Active' : 'Inactive'}
-          </Badge>
+          <div className="flex items-center space-x-2">
+            <Badge variant={product.active ? 'default' : 'secondary'}>
+              {product.active ? 'Active' : 'Inactive'}
+            </Badge>
+            {isLowStock && (
+              <Badge variant="destructive">
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Low Stock
+              </Badge>
+            )}
+          </div>
         </div>
         
         {/* Product Image */}
@@ -113,18 +126,34 @@ export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: Pro
 
         {/* Inventory Status */}
         <div className="mb-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <Package className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Inventory</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <Package className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Inventory</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowThresholdModal(true)}
+              className="h-6 px-2"
+            >
+              <Settings className="h-3 w-3" />
+            </Button>
           </div>
           <div className="flex items-center justify-between">
             <Badge variant={inventoryStatus.variant}>
+              <inventoryStatus.icon className="h-3 w-3 mr-1" />
               {inventoryStatus.text}
             </Badge>
             <span className="text-sm font-mono">
               {product.inventory.inventory} units
             </span>
           </div>
+          {product.threshold !== undefined && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Threshold: {product.threshold} units
+            </div>
+          )}
         </div>
 
         {/* Last Updated */}
@@ -162,6 +191,17 @@ export function ProductCard({ product, onInventoryUpdate, stripeAccountId }: Pro
             onClose={() => setShowAuditLog(false)}
           />
         )}
+
+        {/* Threshold Modal */}
+        <ThresholdModal
+          isOpen={showThresholdModal}
+          onClose={() => setShowThresholdModal(false)}
+          productId={product.id}
+          productName={product.name}
+          currentInventory={product.inventory.inventory}
+          currentThreshold={product.threshold || 10}
+          onThresholdUpdate={onThresholdUpdate}
+        />
 
         {/* Actions */}
         <div className="mt-auto pt-4">
