@@ -115,6 +115,14 @@ function HomeContent() {
               >
                 Connect Shopify Store
               </Button>
+              <Button
+                onClick={() => window.location.href = '/api/etsy/auth'}
+                size="lg"
+                variant="outline"
+                className="border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white"
+              >
+                Connect Etsy Shop
+              </Button>
             </div>
           </div>
         </div>
@@ -150,6 +158,14 @@ function HomeContent() {
               className="text-lg px-8 py-6 border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
             >
               Connect Shopify Store
+            </Button>
+            <Button 
+              onClick={() => window.location.href = '/api/etsy/auth'}
+              variant="outline" 
+              size="lg" 
+              className="text-lg px-8 py-6 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white"
+            >
+              Connect Etsy Shop
             </Button>
           </div>
         </div>
