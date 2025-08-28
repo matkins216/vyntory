@@ -131,7 +131,7 @@ function HomeContent() {
             </span>
           </h2>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Connect your Stripe and Shopify accounts for unified inventory management. 
+            Connect your Stripe, Shopify, and Etsy accounts for unified inventory management. 
             Track stock levels, manage product availability, and maintain comprehensive audit logs—all in one place.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
