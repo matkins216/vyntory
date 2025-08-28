@@ -38,6 +38,8 @@ interface Product {
 function DashboardContent() {
   const searchParams = useSearchParams();
   const accountId = searchParams.get('account');
+  const successMessage = searchParams.get('success');
+  const errorMessage = searchParams.get('error');
   
   console.log('=== DASHBOARD COMPONENT RENDERED ===');
   console.log('🔍 Search params:', Object.fromEntries(searchParams.entries()));
@@ -48,6 +50,41 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
+
+  // Handle success/error messages from OAuth flows
+  useEffect(() => {
+    if (successMessage) {
+      switch (successMessage) {
+        case 'etsy_connected':
+          toast.success('🎉 Successfully connected to Etsy! Your shop is now syncing.');
+          break;
+        case 'shopify_connected':
+          toast.success('🎉 Successfully connected to Shopify! Your store is now syncing.');
+          break;
+        case 'stripe_connected':
+          toast.success('🎉 Successfully connected to Stripe! Your account is now active.');
+          break;
+        default:
+          toast.success('✅ Operation completed successfully!');
+      }
+    }
+    
+    if (errorMessage) {
+      switch (errorMessage) {
+        case 'oauth_failed':
+          toast.error('❌ Failed to connect. Please try again.');
+          break;
+        case 'token_exchange_failed':
+          toast.error('❌ Authentication failed. Please try again.');
+          break;
+        case 'oauth_processing_failed':
+          toast.error('❌ Connection processing failed. Please try again.');
+          break;
+        default:
+          toast.error('❌ An error occurred. Please try again.');
+      }
+    }
+  }, [successMessage, errorMessage]);
 
   const fetchProducts = useCallback(async () => {
     console.log('🔄 fetchProducts called with accountId:', accountId);
