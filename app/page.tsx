@@ -1,12 +1,45 @@
 'use client';
 
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Package, Shield, Zap, BarChart3 } from 'lucide-react';
+import { toast } from 'sonner';
 import Script from 'next/script';
-import { useState } from 'react';
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [shopDomain, setShopDomain] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [showShopifyModal, setShowShopifyModal] = useState(false);
+
+  useEffect(() => {
+    // Check for OAuth errors
+    const error = searchParams.get('error');
+    if (error) {
+      toast.error(`Connection failed: ${error}`);
+    }
+
+    // Check for successful connection
+    const account = searchParams.get('account');
+    if (account) {
+      toast.success('Successfully connected to Stripe!');
+      router.push(`/dashboard?account=${account}`);
+    }
+  }, [searchParams, router]);
+
+  const handleConnectStripe = async () => {
+    setIsConnecting(true);
+    try {
+      // Redirect to Stripe OAuth
+      window.location.href = '/api/stripe/auth';
+    } catch {
+      toast.error('Failed to connect to Stripe');
+      setIsConnecting(false);
+    }
+  };
 
   const handleShopifyConnect = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,47 +60,94 @@ export default function Home() {
     window.location.href = `/api/shopify/auth?shop=${encodeURIComponent(cleanDomain)}`;
   };
 
+  const features = [
+    {
+      icon: Package,
+      title: 'Product Catalog Management',
+      description: 'View and organize all your Stripe products in one centralized dashboard'
+    },
+    {
+      icon: BarChart3,
+      title: 'Real-time Inventory Tracking',
+      description: 'Monitor stock levels with automatic updates and comprehensive audit logs'
+    },
+    {
+      icon: Zap,
+      title: 'Automatic Inventory Updates',
+      description: 'Inventory automatically adjusts when customers make purchases via webhooks'
+    },
+    {
+      icon: Shield,
+      title: 'Smart Product Control',
+      description: 'Products automatically disable when out of stock and re-enable when restocked'
+    }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Script
-        src="https://js.stripe.com/v3/pricing-table.js"
-        strategy="beforeInteractive"
-      />
-      
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">Vyntory</h1>
+      <header className="border-b bg-white/80 backdrop-blur-sm">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <Package className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Vyntory</h1>
+                <p className="text-sm text-gray-600">Multi-Platform Inventory Management</p>
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button variant="outline">Sign In</Button>
-              <Button>Get Started</Button>
+            <div className="flex space-x-4">
+              <Button
+                onClick={handleConnectStripe}
+                disabled={isConnecting}
+                size="lg"
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isConnecting ? 'Connecting...' : 'Connect Stripe Account'}
+              </Button>
+              <Button
+                onClick={() => setShowShopifyModal(true)}
+                size="lg"
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+              >
+                Connect Shopify Store
+              </Button>
             </div>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 text-center">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Multi-Platform Inventory Management
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Sync your products and inventory across Stripe and Shopify automatically. 
-            Manage everything from one dashboard.
+      <section className="py-20">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-5xl font-bold text-gray-900 mb-6">
+            Manage Your Products
+            <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+              Across All Platforms
+            </span>
+          </h2>
+          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
+            Connect your Stripe and Shopify accounts for unified inventory management. 
+            Track stock levels, manage product availability, and maintain comprehensive audit logs—all in one place.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
-              Start with Stripe
-            </Button>
             <Button
-              onClick={() => setShopDomain('')}
+              onClick={handleConnectStripe}
+              disabled={isConnecting}
               size="lg"
-              variant="outline"
-              className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-lg px-8 py-6"
+            >
+              {isConnecting ? 'Connecting...' : 'Get Started with Stripe'}
+            </Button>
+            <Button 
+              onClick={() => setShowShopifyModal(true)}
+              variant="outline" 
+              size="lg" 
+              className="text-lg px-8 py-6 border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
             >
               Connect Shopify Store
             </Button>
@@ -75,19 +155,147 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Shopify Connection Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Connect Your Shopify Store
-            </h2>
-            <p className="text-lg text-gray-600 mb-8">
+      {/* Features Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">
+              Everything You Need to Manage Your Inventory
+            </h3>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Our platform provides comprehensive tools to help you stay on top of your product catalog 
+              and inventory management needs.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature, index) => (
+              <Card key={index} className="text-center border-0 shadow-lg hover:shadow-xl transition-shadow">
+                <CardContent className="pt-8">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <feature.icon className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h4>
+                  <p className="text-gray-600">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-20 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">How It Works</h3>
+            <p className="text-lg text-gray-600">
+              Get started in just a few simple steps
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-white">1</span>
+              </div>
+              <h4 className="text-xl font-semibold text-gray-900 mb-3">Connect Your Stripe Account</h4>
+              <p className="text-gray-600">
+                Securely connect your existing Stripe account using OAuth. No need to create new accounts or transfer data.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-white">2</span>
+              </div>
+              <h4 className="text-xl font-semibold text-gray-900 mb-3">View Your Products</h4>
+              <p className="text-gray-600">
+                Instantly see all your Stripe products with current inventory levels, pricing, and status information.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl font-bold text-white">3</span>
+              </div>
+              <h4 className="text-xl font-semibold text-gray-900 mb-3">Manage Inventory</h4>
+              <p className="text-gray-600">
+                Update stock levels manually or let our webhooks automatically adjust inventory when sales occur.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h3 className="text-3xl font-bold text-gray-900 mb-4">Simple, Transparent Pricing</h3>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Choose the plan that fits your business needs. All plans include our core inventory management features.
+            </p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <div 
+              id="stripe-pricing-table"
+              dangerouslySetInnerHTML={{
+                __html: `<stripe-pricing-table 
+                  pricing-table-id="prctbl_1S0n66BqHlHh50zYnSKUdUmQ"
+                  publishable-key="pk_live_51OE47TBqHlHh50zYanbqxXkLgAshhxY2n4mkYZ71EKhrq4EylXanvBv1f7sCNHpR655EHQG79qGISXRq367UbYJ40084gcgeCk">
+                  </stripe-pricing-table>`
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-4 text-center">
+          <div className="flex items-center justify-center space-x-3 mb-6">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <Package className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold">Vyntory</span>
+          </div>
+          <p className="text-gray-400 mb-6">
+            Powerful inventory management for your Stripe and Shopify products
+          </p>
+          <div className="flex items-center justify-center space-x-6 text-sm text-gray-400">
+            <span>Built with Next.js & Stripe</span>
+            <span>•</span>
+            <span>Secure OAuth Integration</span>
+            <span>•</span>
+            <span>Real-time Updates</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Shopify Connection Modal */}
+      {showShopifyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">Connect Shopify Store</h3>
+              <button
+                onClick={() => setShowShopifyModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <p className="text-gray-600 mb-6">
               Sync your products and inventory automatically with our powerful integration
             </p>
             
-            <form onSubmit={handleShopifyConnect} className="max-w-md mx-auto">
-              <div className="flex gap-2">
+            <form onSubmit={handleShopifyConnect}>
+              <div className="flex gap-2 mb-4">
                 <input
                   type="text"
                   value={shopDomain}
@@ -105,102 +313,33 @@ export default function Home() {
                 type="submit"
                 size="lg"
                 variant="outline"
-                className="w-full mt-4 border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
+                className="w-full border-green-600 text-green-600 hover:bg-green-600 hover:text-white"
                 disabled={isConnecting || !shopDomain}
               >
                 {isConnecting ? 'Connecting...' : 'Connect Shopify Store'}
               </Button>
             </form>
             
-            <p className="text-sm text-gray-500 mt-4">
-              Enter your shop name
+            <p className="text-sm text-gray-500 mt-4 text-center">
+              Enter your shop name (e.g., &quot;mystore&quot; for mystore.myshopify.com)
             </p>
           </div>
         </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Simple, Transparent Pricing
-            </h2>
-            <p className="text-lg text-gray-600">
-              Choose the plan that fits your business needs
-            </p>
-          </div>
-          
-          <div 
-            dangerouslySetInnerHTML={{
-              __html: `<stripe-pricing-table pricing-table-id="prctbl_1S0n66BqHlHh50zYnSKUdUmQ" publishable-key="pk_live_51OE47TBqHlHh50zYanbqxXkLgAshhxY2n4mkYZ71EKhrq4EylXanvBv1f7sCNHpR655EHQG79qGISXRq367UbYJ40084gcgeCk"></stripe-pricing-table>`
-            }}
-          />
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Why Choose Vyntory?
-            </h2>
-            <p className="text-lg text-gray-600">
-              Powerful features to streamline your inventory management
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Real-time Sync</h3>
-              <p className="text-gray-600">Keep your inventory updated across all platforms automatically</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Multi-Platform</h3>
-              <p className="text-gray-600">Manage Stripe and Shopify from one unified dashboard</p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Analytics</h3>
-              <p className="text-gray-600">Get insights into your inventory performance and trends</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h3 className="text-2xl font-bold mb-4">Vyntory</h3>
-            <p className="text-gray-400 mb-6">
-              Streamline your inventory management across multiple platforms
-            </p>
-            <div className="flex justify-center space-x-6">
-              <a href="#" className="text-gray-400 hover:text-white">Privacy</a>
-              <a href="#" className="text-gray-400 hover:text-white">Terms</a>
-              <a href="#" className="text-gray-400 hover:text-white">Support</a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      )}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <>
+      <Script 
+        src="https://js.stripe.com/v3/pricing-table.js" 
+        strategy="beforeInteractive"
+      />
+      <Suspense fallback={<div>Loading...</div>}>
+        <HomeContent />
+      </Suspense>
+    </>
   );
 }
